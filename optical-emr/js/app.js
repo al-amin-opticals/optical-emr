@@ -290,8 +290,14 @@ async function navigateTo(page, params = {}) {
   try {
     const res = await fetch(url);
     const html = await res.text();
-    document.getElementById('page-content').innerHTML = html;
-    document.body.dataset.page = page;
+const content = document.getElementById('page-content');
+content.innerHTML = html;
+content.querySelectorAll('script').forEach(oldScript => {
+  const newScript = document.createElement('script');
+  newScript.textContent = oldScript.textContent;
+  document.body.appendChild(newScript);
+});
+     document.body.dataset.page = page;
     $$('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.page === page));
     document.getElementById('topbar-title').textContent = pageTitles[page] || page;
     // Fire page init
