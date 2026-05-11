@@ -419,15 +419,13 @@ document.addEventListener('keydown', e => {
 // ============================================================
 let _cache = {};
 
-async function fetchConfig(table, select = '*', filter = { is_active: true }) {
-  const key = `${table}_${JSON.stringify(filter)}`;
-  if (_cache[key]) return _cache[key];
-  let q = db.from(table).select(select).order('created_at', { ascending: true });
-  if (filter.is_active !== undefined) q = q.eq('is_active', filter.is_active);
-  const { data, error } = await q;
+async function fetchConfig(table, select = '*') {
+  if (_cache[table]) return _cache[table];
+  const { data, error } = await db.from(table).select(select)
+    .eq('is_active', true).order('created_at', { ascending: true });
   if (error) throw error;
-  _cache[key] = data || [];
-  return _cache[key];
+  _cache[table] = data || [];
+  return _cache[table];
 }
 
 function clearCache(table) {
