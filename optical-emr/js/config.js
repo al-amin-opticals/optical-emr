@@ -556,7 +556,6 @@ window.saveConfig_facilities = async function() {
     license_no:    document.getElementById('fac-license').value || null,
     trn_no:        document.getElementById('fac-trn').value || null,
     phone:         document.getElementById('fac-phone').value || null,
-    email:         document.getElementById('fac-email').value || null,
   };
 
   // Upload seal if selected
