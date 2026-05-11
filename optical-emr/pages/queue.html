@@ -83,12 +83,8 @@
               <th>Emirate</th>
               <th style="white-space:nowrap">Submitted At</th>
               <th style="white-space:nowrap">Wait Time</th>
-              if (!isFrontDesk()) {
-              const row = document.querySelector('#queue-table thead tr');
-              const th = document.createElement('th');
-              th.innerText = 'Actions';
-              row.appendChild(th);
-}            </tr>
+              ${!isFrontDesk() ? '<th>Actions</th>' : ''}
+            </tr>
           </thead>
           <tbody id="queue-tbody">
             <tr><td colspan="10" class="text-center" style="padding:40px">
