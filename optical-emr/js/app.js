@@ -292,9 +292,11 @@ async function navigateTo(page, params = {}) {
     const html = await res.text();
 const content = document.getElementById('page-content');
 content.innerHTML = html;
-content.querySelectorAll('script').forEach(oldScript => {
+const scripts = content.querySelectorAll('script');
+scripts.forEach(oldScript => {
   const newScript = document.createElement('script');
   newScript.textContent = oldScript.textContent;
+  oldScript.parentNode.removeChild(oldScript);
   document.body.appendChild(newScript);
 });
      document.body.dataset.page = page;
