@@ -119,6 +119,10 @@
 </style>
 
 <script>
+  if (isFrontDesk()) {
+  const th = document.getElementById('q-actions-th');
+  if (th) th.style.display = 'none';
+}
 window.init_queue = async function() {
   // Pre-filter if coordinator
   if (isCoordinator() && APP.profile?.emirate) {
