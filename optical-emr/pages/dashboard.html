@@ -1,0 +1,233 @@
+<!-- DASHBOARD PAGE -->
+<div id="dashboard-page">
+
+  <!-- STATS GRID -->
+  <div class="stats-grid mb-16" id="dash-stats">
+    <div class="stat-card"><div class="stat-label">Loading…</div><div class="stat-value">—</div></div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 340px;gap:20px;align-items:start">
+
+    <!-- RECENT CLAIMS -->
+    <div class="card">
+      <div class="card-header">
+        <span style="font-size:16px">📋</span>
+        <div>
+          <div class="card-title">Recent Claims</div>
+          <div class="card-subtitle">Latest submissions across all facilities</div>
+        </div>
+        <button class="btn btn-secondary btn-sm" style="margin-left:auto" onclick="navigateTo('claims')">View All →</button>
+      </div>
+      <div class="card-body" style="padding:0">
+        <div class="qtw">
+          <table class="qt">
+            <thead>
+              <tr>
+                <th>Claim #</th>
+                <th>Patient</th>
+                <th>Facility</th>
+                <th>Status</th>
+                <th>Submitted</th>
+              </tr>
+            </thead>
+            <tbody id="dash-recent-tbody">
+              <tr><td colspan="5" class="text-center" style="padding:30px">
+                <div class="spinner" style="margin:0 auto"></div>
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div>
+
+      <!-- QUEUE STATUS (frontdesk) / EMIRATE BREAKDOWN (others) -->
+      <div class="card mb-16" id="dash-right-card">
+        <div class="card-header">
+          <span style="font-size:16px" id="dash-right-icon">🔢</span>
+          <div>
+            <div class="card-title" id="dash-right-title">Queue Status</div>
+          </div>
+        </div>
+        <div class="card-body" id="dash-right-body">
+          <div class="spinner" style="margin:0 auto;display:block;width:20px;height:20px"></div>
+        </div>
+      </div>
+
+      <!-- QUICK ACTIONS -->
+      <div class="card">
+        <div class="card-header">
+          <span style="font-size:16px">⚡</span>
+          <div><div class="card-title">Quick Actions</div></div>
+        </div>
+        <div class="card-body">
+          <div id="dash-quick-actions" style="display:flex;flex-direction:column;gap:8px">
+            <!-- Role-aware actions injected here -->
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<script>
+async function init_dashboard() {
+  await Promise.all([
+    loadDashStats(),
+    loadRecentClaims(),
+    loadDashRight(),
+    loadQuickActions(),
+  ]);
+}
+
+async function loadDashStats() {
+  try {
+    const s = await Stats.summary();
+    const role = APP.profile?.role;
+
+    const cards = [
+      { label:'Total Claims',   value: s.total,     cls:'',      icon:'📋' },
+      { label:'Pending',        value: s.pending,   cls:'amber', icon:'⏳' },
+      { label:'Approved',       value: s.approved,  cls:'green', icon:'✅' },
+      { label:'Rejected',       value: s.rejected,  cls:'red',   icon:'❌' },
+    ];
+    if (!isFrontDesk()) {
+      cards.push({ label:'Total Approved Amt', value: fmtAED(s.totalAmt), cls:'blue', icon:'💰', isAmt:true });
+    }
+
+    document.getElementById('dash-stats').innerHTML = cards.map(c => `
+      <div class="stat-card ${c.cls}" style="cursor:${c.cls?'pointer':'default'}"
+        ${c.cls && !c.isAmt ? `onclick="navigateTo('claims-${c.label.toLowerCase().replace(' ','')}')"` : ''}>
+        <div class="stat-label">${c.icon} ${c.label}</div>
+        <div class="stat-value" style="${c.isAmt?'font-size:18px;':''}">${c.value}</div>
+        ${c.cls && !c.isAmt ? `<div class="stat-sub">Click to view →</div>` : ''}
+      </div>
+    `).join('');
+  } catch(e) { console.error(e); }
+}
+
+async function loadRecentClaims() {
+  try {
+    const claims = await Claims.list({ limit: 8 });
+    const tbody = document.getElementById('dash-recent-tbody');
+    if (!claims.length) {
+      tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state" style="padding:20px">
+        <div class="es-icon">📋</div>
+        <div class="es-title">No claims yet</div>
+      </div></td></tr>`;
+      return;
+    }
+    tbody.innerHTML = claims.slice(0,8).map(c => `
+      <tr style="cursor:pointer" onclick="navigateTo('claims')">
+        <td class="mono" style="color:var(--teal2);font-size:11px;font-weight:600">${sanitize(c.claim_number)}</td>
+        <td style="font-size:12px;font-weight:500">${sanitize(c.patient_name)}</td>
+        <td style="font-size:11px;color:var(--muted)">${sanitize(c.facilities?.name||'—')}</td>
+        <td>${claimStatusBadge(c.status)}</td>
+        <td style="font-size:11px;color:var(--muted);white-space:nowrap">${fmtDate(c.submitted_at)}</td>
+      </tr>
+    `).join('');
+  } catch(e) { console.error(e); }
+}
+
+async function loadDashRight() {
+  const icon  = document.getElementById('dash-right-icon');
+  const title = document.getElementById('dash-right-title');
+  const body  = document.getElementById('dash-right-body');
+
+  if (isFrontDesk()) {
+    // Show pending queue for this facility
+    title.textContent = 'My Facility Queue';
+    icon.textContent  = '🔢';
+    try {
+      const queue = await Claims.getFacilityQueue(APP.profile.facility_id);
+      if (!queue.length) {
+        body.innerHTML = `<div class="empty-state" style="padding:16px"><div class="es-icon">✅</div><div class="es-title">No pending claims</div></div>`;
+        return;
+      }
+      body.innerHTML = queue.map((c, i) => `
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+          <div class="rank-badge ${i===0?'rank-1':i===1?'rank-2':'rank-n'}">${c.queue_position}</div>
+          <div style="flex:1">
+            <div style="font-size:12px;font-weight:600">${sanitize(c.patient_name)}</div>
+            <div class="mono text-sm text-muted">${sanitize(c.claim_number)}</div>
+          </div>
+          <div class="text-muted text-sm">${fmtDate(c.submitted_at)}</div>
+        </div>
+      `).join('');
+    } catch(e) { body.innerHTML = '<div class="alert alert-error text-sm">Failed to load queue</div>'; }
+
+  } else {
+    // Show emirate breakdown
+    title.textContent = 'Emirates Breakdown';
+    icon.textContent  = '🗺';
+    try {
+      const { data: facilities } = await db.from('facilities').select('id, name, emirate').eq('is_active', true);
+      const emirates = [...new Set(facilities?.map(f => f.emirate) || [])];
+
+      const counts = await Promise.all(emirates.map(async em => {
+        const facIds = facilities.filter(f => f.emirate === em).map(f => f.id);
+        const { count } = await db.from('claims')
+          .select('id', { count:'exact', head:true })
+          .in('facility_id', facIds)
+          .eq('status', 'pending');
+        return { emirate: em, pending: count || 0, branches: facIds.length };
+      }));
+
+      body.innerHTML = counts.map(r => `
+        <div style="display:flex;align-items:center;justify-content:space-between;
+          padding:9px 0;border-bottom:1px solid var(--border);font-size:12px">
+          <div>
+            <div style="font-weight:600">${sanitize(r.emirate)}</div>
+            <div class="text-muted text-sm">${r.branches} branch${r.branches!==1?'es':''}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-family:var(--font-mono);font-weight:700;color:${r.pending?'var(--amber)':'var(--green)'}">${r.pending}</div>
+            <div class="text-muted text-sm">pending</div>
+          </div>
+        </div>
+      `).join('') || '<div class="text-muted text-sm">No data</div>';
+    } catch(e) { body.innerHTML = '<div class="alert alert-error text-sm">Failed to load</div>'; }
+  }
+}
+
+function loadQuickActions() {
+  const el = document.getElementById('dash-quick-actions');
+  const actions = [];
+
+  if (isFrontDesk()) {
+    actions.push(
+      { label:'➕ Submit New Claim',   page:'new-claim',   cls:'btn-primary' },
+      { label:'📂 My Claims',          page:'claims',      cls:'btn-secondary' },
+      { label:'🔢 Queue Status',       page:'queue',       cls:'btn-secondary' },
+    );
+  }
+  if (isOperations()) {
+    actions.push(
+      { label:'📥 View Claims Queue',  page:'claims',          cls:'btn-primary' },
+      { label:'✅ Approved Claims',    page:'claims-approved', cls:'btn-secondary' },
+      { label:'🧾 Generate Invoices',  page:'invoices',        cls:'btn-secondary' },
+      { label:'📦 Batch Submission',   page:'batches',         cls:'btn-secondary' },
+      { label:'🔒 Document Vault',     page:'vault',           cls:'btn-secondary' },
+    );
+  }
+  if (isStakeholder()) {
+    actions.push(
+      { label:'📊 All Claims',         page:'claims',      cls:'btn-primary' },
+      { label:'🧾 Invoices',           page:'invoices',    cls:'btn-secondary' },
+    );
+  }
+  if (['rcm','manager'].includes(APP.profile?.role)) {
+    actions.push(
+      { label:'⚙️ Configuration',      page:'config-facilities', cls:'btn-ghost' },
+    );
+  }
+
+  el.innerHTML = actions.map(a => `
+    <button class="btn ${a.cls} btn-full" onclick="navigateTo('${a.page}')">${a.label}</button>
+  `).join('');
+}
+</script>

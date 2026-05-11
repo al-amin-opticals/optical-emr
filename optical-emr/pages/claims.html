@@ -1,0 +1,754 @@
+<!-- CLAIMS LIST PAGE -->
+<div id="claims-page">
+
+  <!-- FILTERS -->
+  <div class="card mb-16">
+    <div class="card-body" style="padding:14px 20px">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <input type="text" class="fi" id="cl-search" placeholder="🔍  Search patient, claim #, EID…"
+          style="width:280px" oninput="debounce(loadClaims,400)()" />
+        <select class="fi" id="cl-status" style="width:160px" onchange="loadClaims()">
+          <option value="">All Statuses</option>
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+        <select class="fi" id="cl-emirate" style="width:160px" onchange="loadClaims()">
+          <option value="">All Emirates</option>
+          <option>Dubai</option>
+          <option>Abu Dhabi</option>
+          <option>Sharjah</option>
+          <option>Ajman</option>
+          <option>Ras Al Khaimah</option>
+          <option>Fujairah</option>
+          <option>Umm Al Quwain</option>
+        </select>
+        <select class="fi" id="cl-facility" style="width:200px" onchange="loadClaims()">
+          <option value="">All Facilities</option>
+        </select>
+        <button class="btn btn-secondary btn-sm" onclick="loadClaims()">🔄 Refresh</button>
+        <div style="margin-left:auto;font-size:11px;color:var(--muted)" id="cl-count">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CLAIMS TABLE -->
+  <div class="card">
+    <div class="card-body" style="padding:0">
+      <div class="qtw">
+        <table class="qt">
+          <thead>
+            <tr>
+              <th style="width:40px;text-align:center">Rank</th>
+              <th>Claim #</th>
+              <th>Patient</th>
+              <th>Emirates ID</th>
+              <th>Insurance</th>
+              <th>Facility</th>
+              <th>Submitted</th>
+              <th>Status</th>
+              <th style="text-align:right">Claim Amt</th>
+              <th style="width:120px">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="cl-tbody">
+            <tr><td colspan="10" class="text-center" style="padding:40px">
+              <div class="spinner" style="margin:0 auto 8px"></div>
+              <div class="text-muted text-sm">Loading claims…</div>
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       APPROVE MODAL
+       ============================================================ -->
+  <div class="modal-overlay" id="modal-approve">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <div class="modal-title">✅ Approve Claim</div>
+        <button class="modal-close" onclick="closeModal('modal-approve')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-success">Enter insurance approval details below. All fields will appear on the generated invoice.</div>
+
+        <div class="stitle">Approval Information</div>
+        <div class="g3">
+          <div class="fg">
+            <label>Approval Code <span class="req">*</span></label>
+            <input type="text" class="fi fi-mono" id="ap-code" placeholder="e.g. A203862466838643" />
+          </div>
+          <div class="fg">
+            <label>Approval Date <span class="req">*</span></label>
+            <input type="date" class="fi" id="ap-date" />
+          </div>
+          <div class="fg">
+            <label>Approved Amount (AED) <span class="req">*</span></label>
+            <input type="number" class="fi fi-mono" id="ap-amount" step="0.01" placeholder="0.00" />
+          </div>
+        </div>
+        <div class="g3">
+          <div class="fg">
+            <label>Copay / Patient Share (AED)</label>
+            <input type="number" class="fi fi-mono" id="ap-copay" step="0.01" value="0" placeholder="0.00" />
+          </div>
+          <div class="fg">
+            <label>Approving Doctor Name</label>
+            <input type="text" class="fi" id="ap-doctor" placeholder="Doctor's full name" />
+          </div>
+          <div class="fg">
+            <label>VAT %</label>
+            <input type="number" class="fi" id="ap-vat" value="5" min="0" max="100" step="0.01" />
+          </div>
+        </div>
+
+        <div class="stitle">Approved HCPCS Codes</div>
+        <div id="ap-hcpcs-area">
+          <!-- Loaded from claim data -->
+        </div>
+
+        <div class="stitle" style="margin-top:16px">Approval Screenshot</div>
+        <div class="upload-zone" id="uz-approval-screenshot">
+          <input type="file" accept=".pdf,.jpg,.jpeg,.png" id="ap-screenshot-file" />
+          <div class="uz-icon">📸</div>
+          <div class="uz-text">Paste or upload approval screenshot</div>
+          <div class="uz-sub">JPG, PNG, PDF</div>
+        </div>
+        <div class="mt-8 text-sm text-muted">💡 Tip: You can also paste (Ctrl+V) a screenshot directly</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-approve')">Cancel</button>
+        <button class="btn btn-success" onclick="confirmApprove()">✅ Confirm Approval &amp; Generate Invoice</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       REJECT MODAL
+       ============================================================ -->
+  <div class="modal-overlay" id="modal-reject">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">❌ Reject Claim</div>
+        <button class="modal-close" onclick="closeModal('modal-reject')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-error">This action marks the claim as rejected by the insurance company.</div>
+        <div class="fg">
+          <label>Rejection Reason <span class="req">*</span></label>
+          <textarea class="fi" id="rej-reason" rows="3" placeholder="Enter reason from insurance company…"></textarea>
+        </div>
+        <div class="stitle">Rejection Screenshot</div>
+        <div class="upload-zone" id="uz-rejection-screenshot">
+          <input type="file" accept=".pdf,.jpg,.jpeg,.png" id="rej-screenshot-file" />
+          <div class="uz-icon">📸</div>
+          <div class="uz-text">Upload rejection screenshot from insurer</div>
+          <div class="uz-sub">JPG, PNG, PDF</div>
+        </div>
+        <div class="mt-8 text-sm text-muted">💡 You can paste (Ctrl+V) a screenshot directly</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-reject')">Cancel</button>
+        <button class="btn btn-danger" onclick="confirmReject()">❌ Confirm Rejection</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       CANCEL MODAL
+       ============================================================ -->
+  <div class="modal-overlay" id="modal-cancel">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">🚫 Cancel Claim</div>
+        <button class="modal-close" onclick="closeModal('modal-cancel')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-warning">Cancelling will remove this claim from the queue. The facility will need to resubmit with corrections.</div>
+        <div class="fg">
+          <label>Cancellation Reason <span class="req">*</span></label>
+          <select class="fi" id="can-reason-preset" onchange="onCancelPreset(this)">
+            <option value="">— Select reason —</option>
+            <option value="Missing documents">Missing documents</option>
+            <option value="Missing signature">Missing signature / stamp</option>
+            <option value="Incorrect Emirates ID">Incorrect Emirates ID</option>
+            <option value="Policy expired">Policy expired</option>
+            <option value="Duplicate submission">Duplicate submission</option>
+            <option value="Prescription invalid">Prescription invalid / expired</option>
+            <option value="Eligibility not confirmed">Eligibility not confirmed</option>
+            <option value="Other">Other (specify below)</option>
+          </select>
+        </div>
+        <div class="fg" id="can-other-fg" style="display:none">
+          <label>Specify Reason</label>
+          <textarea class="fi" id="can-reason-other" rows="2" placeholder="Enter specific reason…"></textarea>
+        </div>
+        <div class="fg">
+          <label>Additional Notes to Facility</label>
+          <textarea class="fi" id="can-notes" rows="2" placeholder="Instructions for resubmission…"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-cancel')">Back</button>
+        <button class="btn btn-warning" onclick="confirmCancel()">🚫 Cancel Claim</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CLAIM DETAIL MODAL (slide-in) -->
+  <div class="modal-overlay" id="modal-claim-detail">
+    <div class="modal modal-xl">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title" id="cd-title">Claim Detail</div>
+          <div id="cd-subtitle" style="font-size:11px;color:var(--muted)"></div>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-claim-detail')">✕</button>
+      </div>
+      <div class="modal-body" id="cd-body">
+        <div class="text-center" style="padding:40px">
+          <div class="spinner" style="margin:0 auto"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let CL_activeClaimId = null;
+let CL_rejScreenshot = null;
+let CL_apScreenshot  = null;
+
+// ============================================================
+// INIT
+// ============================================================
+async function init_claims(params) {
+  // Set status filter from page param
+  const statusMap = {
+    'claims':            '',
+    'claims-approved':   'approved',
+    'claims-rejected':   'rejected',
+    'claims-cancelled':  'cancelled',
+  };
+  const statusEl = document.getElementById('cl-status');
+  if (statusEl) statusEl.value = statusMap[APP.page] || '';
+
+  // Load facility filter (for managers/rcm)
+  if (!isFrontDesk()) {
+    await loadFacilityOptions('cl-facility');
+  } else {
+    document.getElementById('cl-emirate').style.display = 'none';
+    document.getElementById('cl-facility').style.display = 'none';
+  }
+
+  await loadClaims();
+  initScreenshotPaste();
+}
+
+// ============================================================
+// LOAD CLAIMS
+// ============================================================
+async function loadClaims() {
+  const tbody = document.getElementById('cl-tbody');
+  tbody.innerHTML = `<tr><td colspan="10" class="text-center" style="padding:40px">
+    <div class="spinner" style="margin:0 auto 8px"></div>
+    <div class="text-muted text-sm">Loading…</div>
+  </td></tr>`;
+
+  try {
+    const filters = {
+      status:      document.getElementById('cl-status')?.value || '',
+      emirate:     document.getElementById('cl-emirate')?.value || '',
+      facility_id: document.getElementById('cl-facility')?.value || '',
+      search:      document.getElementById('cl-search')?.value?.trim() || '',
+    };
+    // Remove empty
+    Object.keys(filters).forEach(k => { if (!filters[k]) delete filters[k]; });
+
+    const claims = await Claims.list(filters);
+    document.getElementById('cl-count').textContent = `${claims.length} claim${claims.length !== 1 ? 's' : ''}`;
+
+    if (!claims.length) {
+      tbody.innerHTML = `<tr><td colspan="10">
+        <div class="empty-state">
+          <div class="es-icon">📋</div>
+          <div class="es-title">No claims found</div>
+          <div class="es-text">Try adjusting your filters</div>
+        </div>
+      </td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = claims.map((c, idx) => {
+      const rankHtml = c.status === 'pending' ? `
+        <div class="rank-badge ${idx===0?'rank-1':idx===1?'rank-2':idx===2?'rank-3':'rank-n'}"
+          style="margin:0 auto">${c.queue_position || idx+1}</div>
+      ` : `<span class="text-muted">—</span>`;
+
+      const canDoAction = isOperations();
+      const canApprove  = canDoAction && c.status === 'pending';
+      const canReject   = canDoAction && c.status === 'pending';
+      const canCancel   = canDoAction && c.status === 'pending';
+
+      const approvedAmt = c.approved_amount
+        ? `<span style="font-family:var(--font-mono);font-weight:700;color:var(--green)">${fmtAED(c.approved_amount)}</span>`
+        : c.status === 'pending' ? '<span class="text-muted">—</span>' : '<span class="text-muted">—</span>';
+
+      return `
+        <tr>
+          <td style="text-align:center">${rankHtml}</td>
+          <td>
+            <span class="mono" style="color:var(--teal2);cursor:pointer;font-weight:600"
+              onclick="openClaimDetail('${c.id}')">${sanitize(c.claim_number)}</span>
+          </td>
+          <td>
+            <div style="font-weight:600;font-size:12.5px">${sanitize(c.patient_name)}</div>
+            ${c.member_id ? `<div class="text-muted text-sm">${sanitize(c.member_id)}</div>` : ''}
+          </td>
+          <td class="mono" style="font-size:11px">${sanitize(c.emirates_id||'—')}</td>
+          <td style="font-size:11.5px">${sanitize(c.insurance_companies?.name||'—')}</td>
+          <td>
+            <div style="font-size:11.5px;font-weight:500">${sanitize(c.facilities?.name||'—')}</div>
+            <div class="text-muted text-sm">${sanitize(c.facilities?.emirate||'')}</div>
+          </td>
+          <td class="text-muted" style="font-size:11px;white-space:nowrap">${fmtDateTime(c.submitted_at)}</td>
+          <td>${claimStatusBadge(c.status)}</td>
+          <td style="text-align:right">${approvedAmt}</td>
+          <td>
+            <div style="display:flex;gap:4px;justify-content:flex-end">
+              <button class="btn btn-secondary btn-sm btn-icon" title="View" onclick="openClaimDetail('${c.id}')">👁</button>
+              ${canApprove  ? `<button class="btn btn-success btn-sm btn-icon" title="Approve" onclick="openApproveModal('${c.id}')">✅</button>` : ''}
+              ${canReject   ? `<button class="btn btn-danger btn-sm btn-icon"  title="Reject"  onclick="openRejectModal('${c.id}')">❌</button>` : ''}
+              ${canCancel   ? `<button class="btn btn-warning btn-sm btn-icon" title="Cancel"  onclick="openCancelModal('${c.id}')">🚫</button>` : ''}
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+  } catch(e) {
+    console.error(e);
+    toast('Failed to load claims: ' + e.message, 'error');
+  }
+}
+
+// ============================================================
+// CLAIM DETAIL
+// ============================================================
+async function openClaimDetail(claimId) {
+  const body = document.getElementById('cd-body');
+  body.innerHTML = `<div class="text-center" style="padding:40px"><div class="spinner" style="margin:0 auto"></div></div>`;
+  openModal('modal-claim-detail');
+
+  try {
+    const [claim, docs, history] = await Promise.all([
+      Claims.get(claimId),
+      Claims.getDocs(claimId),
+      Claims.getHistory(claimId),
+    ]);
+
+    document.getElementById('cd-title').textContent = `Claim: ${claim.claim_number}`;
+    document.getElementById('cd-subtitle').textContent =
+      `${claim.patient_name} · ${claim.facilities?.name} · ${fmtDateTime(claim.submitted_at)}`;
+
+    const docTypeLabels = {
+      emirates_id: '🪪 Emirates ID',
+      claim_form:  '📋 Claim Form',
+      prescription:'📝 Prescription',
+      sales_order: '🧾 Sales Order',
+      eligibility: '✅ Eligibility',
+    };
+
+    body.innerHTML = `
+      <div class="tabs">
+        <div class="tab active" onclick="switchTab(event,'cd-tab-info')">Patient Info</div>
+        <div class="tab" onclick="switchTab(event,'cd-tab-clinical')">Clinical</div>
+        <div class="tab" onclick="switchTab(event,'cd-tab-docs')">Documents</div>
+        <div class="tab" onclick="switchTab(event,'cd-tab-history')">History</div>
+        ${claim.status==='approved' ? `<div class="tab" onclick="switchTab(event,'cd-tab-approval')">Approval</div>` : ''}
+      </div>
+
+      <!-- INFO TAB -->
+      <div class="tab-panel active" id="cd-tab-info">
+        <div class="g2">
+          <div>
+            <div class="stitle">Patient Details</div>
+            ${infoRow('Full Name', claim.patient_name)}
+            ${infoRow('Emirates ID', claim.emirates_id, true)}
+            ${infoRow('Phone', claim.phone)}
+            ${infoRow('Member ID', claim.member_id, true)}
+            ${infoRow('Policy Expiry', fmtDate(claim.policy_expiry))}
+          </div>
+          <div>
+            <div class="stitle">Insurance Details</div>
+            ${infoRow('Insurance Co', claim.insurance_companies?.name)}
+            ${infoRow('TPA', claim.tpa_companies?.name || '—')}
+            ${infoRow('Facility', claim.facilities?.name)}
+            ${infoRow('Emirate', claim.facilities?.emirate)}
+            ${infoRow('Submitted By', claim.profiles?.full_name)}
+          </div>
+        </div>
+        <div class="sep"></div>
+        <div class="flex-between">
+          <div>${claimStatusBadge(claim.status)}</div>
+          <div class="mono text-sm text-muted">${claim.claim_number}</div>
+        </div>
+        ${claim.cancellation_reason ? `
+          <div class="alert alert-warning mt-8">
+            <span>🚫</span><span><b>Cancelled:</b> ${sanitize(claim.cancellation_reason)}</span>
+          </div>` : ''}
+        ${claim.rejection_reason ? `
+          <div class="alert alert-error mt-8">
+            <span>❌</span><span><b>Rejected:</b> ${sanitize(claim.rejection_reason)}</span>
+          </div>` : ''}
+      </div>
+
+      <!-- CLINICAL TAB -->
+      <div class="tab-panel" id="cd-tab-clinical">
+        <div class="stitle">ICD-10 Diagnosis Codes</div>
+        ${(claim.icd_codes||[]).length ? `
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">
+            ${(claim.icd_codes||[]).map(i => `
+              <div style="background:var(--blue2);border:1px solid #bfdbfe;border-radius:6px;padding:6px 10px">
+                <div class="code-tag">${sanitize(i.code)}</div>
+                <div style="font-size:11px;color:var(--ink2);margin-top:3px">${sanitize(i.description)}</div>
+              </div>
+            `).join('')}
+          </div>
+        ` : '<div class="text-muted text-sm">No ICD codes recorded</div>'}
+
+        <div class="stitle">Prescription</div>
+        <div style="margin-bottom:16px">
+          ${claim.prescription_type === 'external'
+            ? `<span class="badge ba">External Doctor</span> ${sanitize(claim.external_dr_name||'')}`
+            : `<span class="badge bt">Facility Optometrist</span> ${sanitize(claim.optometrists?.name||'')}`
+          }
+        </div>
+
+        <div class="stitle">HCPCS Items</div>
+        <div class="itw">
+          <table class="itable">
+            <thead>
+              <tr>
+                <th class="lft">HCPCS Code</th>
+                <th class="lft">Description</th>
+                <th>Qty</th>
+                <th>Unit Price</th>
+                <th>Gross</th>
+                <th>VAT</th>
+                <th>Co-Ins</th>
+                <th>Claim Amt</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${(claim.hcpcs_items||[]).map(h => `
+                <tr>
+                  <td><span class="code-tag">${sanitize(h.code)}</span></td>
+                  <td class="lft">${sanitize(h.description)}</td>
+                  <td class="text-center">${h.qty||1}</td>
+                  <td class="text-right mono">${fmtNum(h.unit_price)}</td>
+                  <td class="text-right mono">${fmtNum(h.gross)}</td>
+                  <td class="text-right mono">${fmtNum(h.vat_amount)}</td>
+                  <td class="text-right mono">${fmtNum(h.co_ins)}</td>
+                  <td class="text-right mono fw-700">${fmtNum(h.claim_amount)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+        ${claim.diagnosis_notes ? `
+          <div class="fg mt-12">
+            <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase">Clinical Notes</label>
+            <div style="font-size:12.5px;color:var(--ink2);margin-top:4px;background:var(--bg2);padding:10px;border-radius:6px">
+              ${sanitize(claim.diagnosis_notes)}
+            </div>
+          </div>
+        ` : ''}
+      </div>
+
+      <!-- DOCUMENTS TAB -->
+      <div class="tab-panel" id="cd-tab-docs">
+        <div class="doc-grid">
+          ${docs.map(d => `
+            <a href="${d.file_url}" target="_blank" class="doc-item">
+              <div class="doc-preview">${d.doc_type==='prescription'?'📝':d.doc_type==='emirates_id'?'🪪':d.doc_type==='claim_form'?'📋':d.doc_type==='sales_order'?'🧾':'✅'}</div>
+              <div class="doc-label">
+                <span>${docTypeLabels[d.doc_type] || d.doc_type}</span>
+                <span style="font-size:9px;color:var(--muted)">↗</span>
+              </div>
+            </a>
+          `).join('')}
+          ${!docs.length ? `<div class="text-muted text-sm">No documents uploaded</div>` : ''}
+        </div>
+        ${claim.approval_screenshot_url ? `
+          <div class="sep"></div>
+          <div class="stitle">Approval Screenshot</div>
+          <a href="${claim.approval_screenshot_url}" target="_blank">
+            <div style="background:var(--green2);border:1px solid #a7f3d0;border-radius:6px;padding:12px;display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--green)">
+              📸 View Approval Screenshot ↗
+            </div>
+          </a>
+        ` : ''}
+        ${claim.rejection_screenshot_url ? `
+          <div class="sep"></div>
+          <div class="stitle">Rejection Screenshot</div>
+          <a href="${claim.rejection_screenshot_url}" target="_blank">
+            <div style="background:var(--red2);border:1px solid #fecaca;border-radius:6px;padding:12px;display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--red)">
+              📸 View Rejection Screenshot ↗
+            </div>
+          </a>
+        ` : ''}
+      </div>
+
+      <!-- HISTORY TAB -->
+      <div class="tab-panel" id="cd-tab-history">
+        <div class="timeline">
+          ${history.map(h => `
+            <div class="tl-item">
+              <div class="tl-dot ${h.new_status}"></div>
+              <div class="tl-content">
+                <div class="tl-title">${h.old_status ? `${h.old_status} → ` : ''}${h.new_status}</div>
+                <div class="tl-meta">${sanitize(h.profiles?.full_name||'System')} · ${fmtDateTime(h.changed_at)}</div>
+                ${h.notes ? `<div class="tl-detail">${sanitize(h.notes)}</div>` : ''}
+              </div>
+            </div>
+          `).join('')}
+          ${!history.length ? `<div class="text-muted text-sm">No history yet</div>` : ''}
+        </div>
+      </div>
+
+      <!-- APPROVAL TAB (only if approved) -->
+      ${claim.status==='approved' ? `
+      <div class="tab-panel" id="cd-tab-approval">
+        <div class="g2">
+          <div>
+            ${infoRow('Approval Code', claim.approval_code, true)}
+            ${infoRow('Approval Date', fmtDate(claim.approval_date))}
+            ${infoRow('Approved Doctor', claim.approved_doctor_name)}
+          </div>
+          <div>
+            ${infoRow('Approved Amount', fmtAED(claim.approved_amount))}
+            ${infoRow('Copay / Patient Share', fmtAED(claim.copay_amount))}
+            ${infoRow('Claim Amount', fmtAED(claim.approved_amount - (claim.copay_amount||0)))}
+          </div>
+        </div>
+        ${!claim.invoice_id ? `
+          <div class="sep"></div>
+          <button class="btn btn-primary" onclick="generateInvoice('${claim.id}')">
+            🧾 Generate Invoice
+          </button>
+        ` : `
+          <div class="alert alert-success mt-8">
+            Invoice already generated. View it in the Invoices section.
+          </div>
+        `}
+      </div>
+      ` : ''}
+    `;
+
+  } catch(e) {
+    console.error(e);
+    body.innerHTML = `<div class="alert alert-error">Failed to load claim: ${e.message}</div>`;
+  }
+}
+
+function infoRow(label, value, mono=false) {
+  return `
+    <div style="display:flex;justify-content:space-between;align-items:center;
+      padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
+      <span style="color:var(--muted);font-weight:600">${label}</span>
+      <span style="${mono?'font-family:var(--font-mono);':''}font-weight:500">${value||'—'}</span>
+    </div>
+  `;
+}
+
+function switchTab(e, tabId) {
+  const container = e.target.closest('.modal-body') || e.target.closest('#page-content');
+  container.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === e.target));
+  container.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === tabId));
+}
+
+// ============================================================
+// APPROVE MODAL
+// ============================================================
+async function openApproveModal(claimId) {
+  CL_activeClaimId = claimId;
+  CL_apScreenshot  = null;
+
+  // Set default date
+  document.getElementById('ap-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('ap-code').value = '';
+  document.getElementById('ap-amount').value = '';
+  document.getElementById('ap-copay').value = '0';
+  document.getElementById('ap-doctor').value = '';
+
+  // Load HCPCS from claim
+  try {
+    const claim = await Claims.get(claimId);
+    const hcpcsArea = document.getElementById('ap-hcpcs-area');
+    if (claim.hcpcs_items?.length) {
+      hcpcsArea.innerHTML = `
+        <div class="text-sm text-muted mb-8">Review and confirm approved HCPCS codes:</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          ${claim.hcpcs_items.map(h => `
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--bg2);border-radius:6px">
+              <input type="checkbox" checked style="width:16px;height:16px;accent-color:var(--teal2)" />
+              <span class="code-tag">${sanitize(h.code)}</span>
+              <span style="flex:1;font-size:12px">${sanitize(h.description)}</span>
+              <span class="mono" style="font-size:11px;font-weight:700;color:var(--green)">${fmtAED(h.claim_amount)}</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+      // Auto-fill total
+      const total = claim.hcpcs_items.reduce((s,h) => s+(+h.claim_amount||0), 0);
+      document.getElementById('ap-amount').value = total.toFixed(2);
+    }
+  } catch(e) { console.error(e); }
+
+  initUploadZone('uz-approval-screenshot', {
+    accept: '.pdf,.jpg,.jpeg,.png',
+    label: 'Upload approval screenshot',
+    onFile: (f) => { CL_apScreenshot = f; }
+  });
+
+  openModal('modal-approve');
+}
+
+async function confirmApprove() {
+  const code   = document.getElementById('ap-code').value?.trim();
+  const date   = document.getElementById('ap-date').value;
+  const amount = parseFloat(document.getElementById('ap-amount').value) || 0;
+  const copay  = parseFloat(document.getElementById('ap-copay').value) || 0;
+  const doctor = document.getElementById('ap-doctor').value?.trim();
+  const vat    = parseFloat(document.getElementById('ap-vat').value) || 5;
+
+  if (!code || !date || !amount) {
+    toast('Please fill approval code, date and amount', 'error');
+    return;
+  }
+
+  try {
+    await Claims.approve(CL_activeClaimId, {
+      approval_code:        code,
+      approval_date:        date,
+      approved_amount:      amount,
+      copay_amount:         copay,
+      approved_doctor_name: doctor,
+      vat_percent:          vat,
+    }, CL_apScreenshot);
+
+    toast('Claim approved successfully!', 'success');
+    closeModal('modal-approve');
+    await loadClaims();
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
+// ============================================================
+// REJECT MODAL
+// ============================================================
+function openRejectModal(claimId) {
+  CL_activeClaimId = claimId;
+  CL_rejScreenshot = null;
+  document.getElementById('rej-reason').value = '';
+  initUploadZone('uz-rejection-screenshot', {
+    accept: '.pdf,.jpg,.jpeg,.png',
+    label: 'Upload rejection screenshot',
+    onFile: (f) => { CL_rejScreenshot = f; }
+  });
+  openModal('modal-reject');
+}
+
+async function confirmReject() {
+  const reason = document.getElementById('rej-reason').value?.trim();
+  if (!reason) { toast('Please enter rejection reason', 'error'); return; }
+  try {
+    await Claims.reject(CL_activeClaimId, reason, CL_rejScreenshot);
+    toast('Claim marked as rejected', 'warning');
+    closeModal('modal-reject');
+    await loadClaims();
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
+// ============================================================
+// CANCEL MODAL
+// ============================================================
+function openCancelModal(claimId) {
+  CL_activeClaimId = claimId;
+  document.getElementById('can-reason-preset').value = '';
+  document.getElementById('can-notes').value = '';
+  document.getElementById('can-other-fg').style.display = 'none';
+  openModal('modal-cancel');
+}
+
+function onCancelPreset(sel) {
+  document.getElementById('can-other-fg').style.display = sel.value === 'Other' ? '' : 'none';
+}
+
+async function confirmCancel() {
+  const preset = document.getElementById('can-reason-preset').value;
+  const other  = document.getElementById('can-reason-other')?.value?.trim();
+  const notes  = document.getElementById('can-notes').value?.trim();
+
+  if (!preset) { toast('Please select a cancellation reason', 'error'); return; }
+  const reason = preset === 'Other' ? (other || 'Other') : preset;
+
+  try {
+    await Claims.cancel(CL_activeClaimId, reason + (notes ? '. Notes: ' + notes : ''));
+    toast('Claim cancelled', 'warning');
+    closeModal('modal-cancel');
+    await loadClaims();
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
+// ============================================================
+// GENERATE INVOICE
+// ============================================================
+async function generateInvoice(claimId) {
+  try {
+    const inv = await Invoices.create(claimId);
+    toast('Invoice generated: ' + inv.invoice_number, 'success');
+    closeModal('modal-claim-detail');
+    await loadClaims();
+  } catch(e) {
+    toast('Invoice error: ' + e.message, 'error');
+  }
+}
+
+// ============================================================
+// PASTE SCREENSHOT SUPPORT
+// ============================================================
+function initScreenshotPaste() {
+  document.addEventListener('paste', (e) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        // Determine active modal
+        if (document.getElementById('modal-approve')?.classList.contains('open')) {
+          CL_apScreenshot = file;
+          const zone = document.getElementById('uz-approval-screenshot');
+          if (zone) { zone.classList.add('has-file'); zone.querySelector('.uz-text').textContent = 'Screenshot pasted ✓'; }
+          toast('Screenshot pasted (approval)', 'success');
+        } else if (document.getElementById('modal-reject')?.classList.contains('open')) {
+          CL_rejScreenshot = file;
+          const zone = document.getElementById('uz-rejection-screenshot');
+          if (zone) { zone.classList.add('has-file'); zone.querySelector('.uz-text').textContent = 'Screenshot pasted ✓'; }
+          toast('Screenshot pasted (rejection)', 'success');
+        }
+      }
+    }
+  });
+}
+</script>

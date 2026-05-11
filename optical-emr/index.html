@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Al Amin Opticals — Claims EMR</title>
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+
+<!-- PAGE LOADER -->
+<div class="page-loader" id="page-loader">
+  <div class="spinner" style="width:32px;height:32px;border-width:3px"></div>
+  <div style="font-size:12px;color:var(--muted);margin-top:8px">Loading…</div>
+</div>
+
+<!-- TOAST -->
+<div id="toast-container"></div>
+
+<div class="app-layout">
+
+  <!-- ======================================================
+       SIDEBAR
+       ====================================================== -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:34px;height:34px;background:rgba(255,255,255,.15);border-radius:8px;
+          display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">👁</div>
+        <div>
+          <div class="logo-text">Al Amin Opticals</div>
+          <div class="logo-sub">Claims EMR · UAE</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-user">
+      <div class="avatar" id="sidebar-avatar">?</div>
+      <div>
+        <div class="uname" id="sidebar-uname">Loading…</div>
+        <div class="urole" id="sidebar-urole">—</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav" id="sidebar-nav">
+      <!-- Built dynamically by buildNav() -->
+    </nav>
+
+    <div class="sidebar-footer">
+      <button class="btn-logout" onclick="signOut()">
+        <span>⬅</span> Sign Out
+      </button>
+    </div>
+  </aside>
+
+  <!-- ======================================================
+       MAIN
+       ====================================================== -->
+  <div class="main-content">
+    <header class="topbar">
+      <h1 class="topbar-title" id="topbar-title">Dashboard</h1>
+      <div class="topbar-actions">
+        <span class="badge bt" id="topbar-facility" style="display:none"></span>
+        <button class="btn btn-secondary btn-sm" id="new-claim-btn"
+          style="display:none" onclick="navigateTo('new-claim')">
+          ➕ New Claim
+        </button>
+      </div>
+    </header>
+
+    <main class="page-body" id="page-content">
+      <!-- Pages injected here -->
+    </main>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="js/app.js"></script>
+<script src="js/dashboard.js"></script>
+<script src="js/claims.js"></script>
+<script src="js/invoice.js"></script>
+<script src="js/config.js"></script>
+<script>
+  window.addEventListener('DOMContentLoaded', async () => {
+    await initApp();
+    // Show new claim btn for frontdesk
+    if (isFrontDesk()) {
+      document.getElementById('new-claim-btn').style.display = 'inline-flex';
+    }
+  });
+
+  // Hash-based routing
+  window.addEventListener('hashchange', () => {
+    const page = location.hash.replace('#','') || 'dashboard';
+    navigateTo(page);
+  });
+</script>
+</body>
+</html>

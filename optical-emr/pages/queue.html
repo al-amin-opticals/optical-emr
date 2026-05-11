@@ -1,0 +1,369 @@
+<!-- QUEUE PAGE (injected into page-content) -->
+<div id="queue-page">
+
+  <!-- FRONT DESK: MY FACILITY RANK BANNER -->
+  <div id="fd-rank-banner" style="display:none">
+    <!-- Populated if frontdesk -->
+  </div>
+
+  <!-- TOP STATS -->
+  <div class="stats-grid mb-16" id="queue-stats">
+    <div class="stat-card amber">
+      <div class="stat-label">⏳ Total Pending</div>
+      <div class="stat-value" id="qs-total">—</div>
+      <div class="stat-sub">In central queue</div>
+    </div>
+    <div class="stat-card blue">
+      <div class="stat-label">🏢 Facilities Active</div>
+      <div class="stat-value" id="qs-facilities">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">⏱ Oldest Claim</div>
+      <div class="stat-value" style="font-size:14px" id="qs-oldest">—</div>
+    </div>
+    <div class="stat-card green">
+      <div class="stat-label">✅ Processed Today</div>
+      <div class="stat-value" id="qs-today">—</div>
+    </div>
+  </div>
+
+  <!-- QUEUE FILTERS -->
+  <div class="card mb-12">
+    <div class="card-body" style="padding:12px 18px">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <select class="fi" id="q-emirate" style="width:160px" onchange="loadQueuePage()">
+          <option value="">All Emirates</option>
+          <option>Dubai</option>
+          <option>Abu Dhabi</option>
+          <option>Sharjah</option>
+          <option>Ajman</option>
+          <option>Ras Al Khaimah</option>
+          <option>Fujairah</option>
+          <option>Umm Al Quwain</option>
+        </select>
+        <select class="fi" id="q-insurance" style="width:200px" onchange="loadQueuePage()">
+          <option value="">All Insurance</option>
+        </select>
+        <input type="text" class="fi" id="q-search"
+          placeholder="🔍 Search patient / claim #…"
+          style="width:220px" oninput="debounce(loadQueuePage,350)()" />
+        <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+          <div id="q-live-dot" style="width:8px;height:8px;border-radius:50%;background:var(--green);
+            animation:pulse 2s infinite"></div>
+          <span style="font-size:11px;color:var(--muted)">Live · refreshes every 30s</span>
+          <button class="btn btn-secondary btn-sm" onclick="loadQueuePage()">🔄</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN QUEUE TABLE -->
+  <div class="card">
+    <div class="card-header">
+      <span style="font-size:16px">🔢</span>
+      <div>
+        <div class="card-title">Central Claims Queue</div>
+        <div class="card-subtitle" id="q-timestamp">Last updated: —</div>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:8px">
+        <button class="btn btn-secondary btn-sm" onclick="exportClaimsCSV()">📊 Export</button>
+      </div>
+    </div>
+    <div class="card-body" style="padding:0">
+      <div class="qtw">
+        <table class="qt" id="queue-table">
+          <thead>
+            <tr>
+              <th style="width:60px;text-align:center">Rank</th>
+              <th>Claim #</th>
+              <th>Patient</th>
+              <th>Emirates ID</th>
+              <th>Insurance</th>
+              <th>Facility</th>
+              <th>Emirate</th>
+              <th style="white-space:nowrap">Submitted At</th>
+              <th style="white-space:nowrap">Wait Time</th>
+              ${!isFrontDesk() ? '<th>Actions</th>' : ''}
+            </tr>
+          </thead>
+          <tbody id="queue-tbody">
+            <tr><td colspan="10" class="text-center" style="padding:40px">
+              <div class="spinner" style="margin:0 auto 10px"></div>
+              <div class="text-muted text-sm">Loading queue…</div>
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- EMIRATE BREAKDOWN (for managers) -->
+  <div id="emirate-breakdown" style="margin-top:20px;display:none">
+    <div class="card">
+      <div class="card-header">
+        <span style="font-size:16px">🗺</span>
+        <div><div class="card-title">Queue by Emirate</div></div>
+      </div>
+      <div class="card-body" id="emirate-breakdown-body">
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<style>
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+</style>
+
+<script>
+window.init_queue = async function() {
+  // Pre-filter if coordinator
+  if (isCoordinator() && APP.profile?.emirate) {
+    const el = document.getElementById('q-emirate');
+    if (el) el.value = APP.profile.emirate;
+  }
+  // Hide emirate/insurance filter for front desk
+  if (isFrontDesk()) {
+    document.getElementById('q-emirate').style.display   = 'none';
+    document.getElementById('q-insurance').style.display = 'none';
+  }
+
+  await loadInsuranceOptions('q-insurance');
+  await loadQueuePage();
+  await loadQueueStats();
+
+  if (!isFrontDesk()) loadEmirateBreakdown();
+
+  // Auto-refresh
+  if (window._queueTimer) clearInterval(window._queueTimer);
+  window._queueTimer = setInterval(async () => {
+    await loadQueuePage();
+    await loadQueueStats();
+  }, 30000);
+};
+
+// ============================================================
+// QUEUE STATS
+// ============================================================
+async function loadQueueStats() {
+  try {
+    let q = db.from('claims').select('facility_id, submitted_at', { count: 'exact' }).eq('status', 'pending');
+    if (isFrontDesk()) q = q.eq('facility_id', APP.profile.facility_id);
+
+    const { data: pending, count: total } = await q;
+    const facIds = [...new Set((pending||[]).map(c => c.facility_id))].filter(Boolean);
+
+    // Processed today
+    const today = new Date(); today.setHours(0,0,0,0);
+    const { count: todayCount } = await db.from('claims')
+      .select('id', { count:'exact', head:true })
+      .in('status', ['approved','rejected'])
+      .gte('updated_at', today.toISOString());
+
+    // Oldest pending
+    let oldestText = '—';
+    if (pending?.length) {
+      const oldest = pending.reduce((a, b) =>
+        new Date(a.submitted_at) < new Date(b.submitted_at) ? a : b);
+      const diffH = Math.floor((Date.now() - new Date(oldest.submitted_at)) / 3600000);
+      oldestText = diffH < 1 ? '< 1 hr' : diffH < 24 ? `${diffH} hr${diffH>1?'s':''}` : `${Math.floor(diffH/24)} day${Math.floor(diffH/24)>1?'s':''}`;
+    }
+
+    document.getElementById('qs-total').textContent     = total || 0;
+    document.getElementById('qs-facilities').textContent= facIds.length;
+    document.getElementById('qs-oldest').textContent    = oldestText;
+    document.getElementById('qs-today').textContent     = todayCount || 0;
+  } catch(e) { console.error(e); }
+}
+
+// ============================================================
+// MAIN QUEUE TABLE
+// ============================================================
+async function loadQueuePage() {
+  const tbody = document.getElementById('queue-tbody');
+  if (!tbody) return;
+
+  document.getElementById('q-timestamp').textContent =
+    'Last updated: ' + new Date().toLocaleTimeString('en-AE');
+
+  const filters = {
+    status:      'pending',
+    emirate:     document.getElementById('q-emirate')?.value || '',
+    search:      document.getElementById('q-search')?.value?.trim() || '',
+  };
+  Object.keys(filters).forEach(k => { if (!filters[k]) delete filters[k]; });
+
+  try {
+    const claims = await Claims.list(filters);
+    const myFacId = APP.profile?.facility_id;
+
+    // FRONT DESK: show my facility's rank banner
+    if (isFrontDesk()) {
+      const myClaims = claims.filter(c => c.facility_id === myFacId);
+      const banner   = document.getElementById('fd-rank-banner');
+      banner.style.display = '';
+
+      if (myClaims.length) {
+        banner.innerHTML = `
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px">
+            ${myClaims.map(c => `
+              <div class="queue-rank-display" style="padding:18px">
+                <div class="qrd-label">${sanitize(c.claim_number)}</div>
+                <div class="qrd-num">#${c.queue_position}</div>
+                <div class="qrd-sub">${sanitize(c.patient_name)}</div>
+                <div style="margin-top:8px;font-size:10.5px;opacity:.7">
+                  Submitted ${fmtDateTime(c.submitted_at)}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      } else {
+        banner.innerHTML = `
+          <div style="background:var(--green2);border:1px solid #a7f3d0;border-radius:var(--radius-lg);
+            padding:20px;text-align:center;margin-bottom:16px">
+            <div style="font-size:28px;margin-bottom:8px">✅</div>
+            <div style="font-weight:700;color:var(--green)">No pending claims from your facility</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:4px">Queue clear for ${sanitize(APP.profile.facilities?.name||'your branch')}</div>
+          </div>
+        `;
+      }
+    }
+
+    if (!claims.length) {
+      tbody.innerHTML = `<tr><td colspan="10">
+        <div class="empty-state" style="padding:40px">
+          <div class="es-icon">✅</div>
+          <div class="es-title">Queue is clear!</div>
+          <div class="es-text">No pending claims at the moment</div>
+        </div>
+      </td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = claims.map((c, i) => {
+      const isMyFac   = c.facility_id === myFacId;
+      const rankCls   = i===0?'rank-1':i===1?'rank-2':i===2?'rank-3':'rank-n';
+
+      // Wait time calculation
+      const diffMs  = Date.now() - new Date(c.submitted_at).getTime();
+      const diffH   = Math.floor(diffMs / 3600000);
+      const waitTxt = diffH < 1 ? '< 1 hr' : diffH < 24 ? `${diffH}h` : `${Math.floor(diffH/24)}d ${diffH%24}h`;
+      const waitCls = diffH > 48 ? 'color:var(--red);font-weight:700' : diffH > 24 ? 'color:var(--amber);font-weight:600' : 'color:var(--muted)';
+
+      const hasActions = !isFrontDesk();
+
+      return `
+        <tr style="${isMyFac ? 'background:#fffbeb;' : ''}">
+          <td style="text-align:center;padding:8px 4px">
+            <div class="rank-badge ${rankCls}" style="margin:0 auto">${c.queue_position || i+1}</div>
+          </td>
+          <td>
+            <span class="mono fw-600" style="color:var(--teal2);font-size:11px;cursor:pointer"
+              onclick="navigateTo('claims')">${sanitize(c.claim_number)}</span>
+            ${isMyFac ? `<span class="badge bt" style="margin-left:6px;font-size:9px">Your Branch</span>` : ''}
+            ${c.resubmission_count ? `<span class="badge ba" style="margin-left:4px;font-size:9px">Resubmit #${c.resubmission_count}</span>` : ''}
+          </td>
+          <td>
+            <div style="font-weight:600;font-size:12.5px">${sanitize(c.patient_name)}</div>
+            ${c.member_id ? `<div class="text-muted text-sm">${sanitize(c.member_id)}</div>` : ''}
+          </td>
+          <td class="mono" style="font-size:10.5px">${sanitize(c.emirates_id||'—')}</td>
+          <td style="font-size:11.5px">${sanitize(c.insurance_companies?.name||'—')}</td>
+          <td>
+            <div style="font-size:11.5px;font-weight:500">${sanitize(c.facilities?.name||'—')}</div>
+          </td>
+          <td>
+            <span class="badge" style="background:${getEmirateColor(c.facilities?.emirate||'')}22;
+              color:${getEmirateColor(c.facilities?.emirate||'')}">
+              ${sanitize(c.facilities?.emirate||'—')}
+            </span>
+          </td>
+          <td style="font-size:11px;white-space:nowrap;color:var(--muted)">${fmtDateTime(c.submitted_at)}</td>
+          <td style="font-size:11.5px;white-space:nowrap;${waitCls}">${waitTxt}</td>
+          ${hasActions ? `
+          <td>
+            <div style="display:flex;gap:4px">
+              <button class="btn btn-success btn-sm btn-icon" title="Approve" onclick="openApproveModal('${c.id}')">✅</button>
+              <button class="btn btn-danger btn-sm btn-icon"  title="Reject"  onclick="openRejectModal('${c.id}')">❌</button>
+              <button class="btn btn-warning btn-sm btn-icon" title="Cancel"  onclick="openCancelModal('${c.id}')">🚫</button>
+            </div>
+          </td>` : ''}
+        </tr>
+      `;
+    }).join('');
+
+  } catch(e) {
+    console.error(e);
+    tbody.innerHTML = `<tr><td colspan="10">
+      <div class="alert alert-error" style="margin:12px">Failed to load queue: ${e.message}</div>
+    </td></tr>`;
+  }
+}
+
+// ============================================================
+// EMIRATE BREAKDOWN CHART (text-based)
+// ============================================================
+async function loadEmirateBreakdown() {
+  const container = document.getElementById('emirate-breakdown');
+  const body      = document.getElementById('emirate-breakdown-body');
+  if (!container || !body) return;
+  container.style.display = '';
+
+  try {
+    const { data: facs } = await db.from('facilities').select('id, name, emirate').eq('is_active', true);
+    const emirates = [...new Set(facs?.map(f => f.emirate)||[])];
+
+    const rows = await Promise.all(emirates.map(async em => {
+      const emFacIds = (facs||[]).filter(f => f.emirate === em).map(f => f.id);
+      const { count: pending }  = await db.from('claims')
+        .select('id',{count:'exact',head:true}).in('facility_id', emFacIds).eq('status','pending');
+      const { count: approved } = await db.from('claims')
+        .select('id',{count:'exact',head:true}).in('facility_id', emFacIds).eq('status','approved');
+      const { count: total }    = await db.from('claims')
+        .select('id',{count:'exact',head:true}).in('facility_id', emFacIds);
+      return { emirate: em, pending: pending||0, approved: approved||0, total: total||0, branches: emFacIds.length };
+    }));
+
+    rows.sort((a,b) => b.pending - a.pending);
+    const maxPending = Math.max(...rows.map(r => r.pending), 1);
+
+    body.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px">
+        ${rows.map(r => {
+          const pct = Math.round((r.pending / maxPending) * 100);
+          const color = getEmirateColor(r.emirate);
+          return `
+            <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                <div>
+                  <div style="font-weight:700;font-size:13px">${sanitize(r.emirate)}</div>
+                  <div style="font-size:11px;color:var(--muted)">${r.branches} branch${r.branches>1?'es':''}</div>
+                </div>
+                <div style="text-align:right">
+                  <div style="font-family:var(--font-mono);font-weight:800;font-size:20px;
+                    color:${r.pending > 0 ? 'var(--amber)' : 'var(--green)'}">${r.pending}</div>
+                  <div style="font-size:10px;color:var(--muted)">pending</div>
+                </div>
+              </div>
+              <div style="height:6px;background:var(--border);border-radius:99px;overflow:hidden">
+                <div style="width:${pct}%;height:100%;background:${color};border-radius:99px;transition:.4s"></div>
+              </div>
+              <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:10.5px;color:var(--muted)">
+                <span>✅ ${r.approved} approved</span>
+                <span>📋 ${r.total} total</span>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  } catch(e) { console.error(e); }
+}
+
+// Approve/Reject/Cancel modals are defined in claims.html — they work here too
+// because all page content shares the same JS scope
+</script>

@@ -1,0 +1,283 @@
+<!-- INVOICES PAGE (injected into page-content) -->
+<div id="invoices-page">
+
+  <div style="display:flex;gap:12px;margin-bottom:16px;align-items:center">
+    <div style="flex:1">
+      <div style="font-size:12px;color:var(--muted)">
+        Manage generated invoices. Preview individual invoices or group them into monthly batches for insurer submission.
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="navigateTo('batches')">📦 Batch Submission →</button>
+  </div>
+
+  <!-- FILTERS -->
+  <div class="card mb-16">
+    <div class="card-body" style="padding:14px 20px">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <input type="text" class="fi" id="inv-search"
+          placeholder="🔍 Patient name, invoice #, approval code…"
+          style="width:280px" oninput="debounce(loadInvoicesPage,350)()" />
+        <select class="fi" id="inv-facility-filter" style="width:200px" onchange="loadInvoicesPage()">
+          <option value="">All Facilities</option>
+        </select>
+        <select class="fi" id="inv-insurance-filter" style="width:200px" onchange="loadInvoicesPage()">
+          <option value="">All Insurance Companies</option>
+        </select>
+        <select class="fi" id="inv-batch-filter" style="width:160px" onchange="loadInvoicesPage()">
+          <option value="unbatched">Unbatched Only</option>
+          <option value="">All Invoices</option>
+        </select>
+        <button class="btn btn-secondary btn-sm" onclick="loadInvoicesPage()">🔄</button>
+        <div style="margin-left:auto;font-size:11px;color:var(--muted)" id="inv-count-label">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUMMARY CARDS -->
+  <div class="stats-grid mb-16" id="inv-stats">
+    <!-- Loaded dynamically -->
+  </div>
+
+  <!-- INVOICES TABLE -->
+  <div class="card">
+    <div class="card-header">
+      <span style="font-size:16px">🧾</span>
+      <div><div class="card-title">Invoices</div></div>
+      <div style="margin-left:auto;display:flex;gap:8px">
+        <button class="btn btn-secondary btn-sm" onclick="exportInvoicesCSV()">📊 Export CSV</button>
+      </div>
+    </div>
+    <div class="card-body" style="padding:0">
+      <div class="qtw">
+        <table class="qt">
+          <thead>
+            <tr>
+              <th>Invoice #</th>
+              <th>Patient</th>
+              <th>Insurance</th>
+              <th>Facility</th>
+              <th>Approval Code</th>
+              <th>Date</th>
+              <th style="text-align:right">Gross</th>
+              <th style="text-align:right">VAT</th>
+              <th style="text-align:right">Patient Share</th>
+              <th style="text-align:right">Claim Amt</th>
+              <th>Batch</th>
+              <th style="width:100px">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="inv-tbody">
+            <tr><td colspan="12" class="text-center" style="padding:40px">
+              <div class="spinner" style="margin:0 auto 8px"></div>
+              <div class="text-muted text-sm">Loading invoices…</div>
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- INVOICE PREVIEW MODAL -->
+  <div class="modal-overlay" id="modal-inv-preview">
+    <div class="modal modal-xl">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title" id="inv-preview-title">🧾 Tax Invoice</div>
+          <div id="inv-preview-subtitle" style="font-size:11px;color:var(--muted)"></div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn btn-primary btn-sm" onclick="printInvoice()">🖨 Print / Save PDF</button>
+          <button class="modal-close" onclick="closeModal('modal-inv-preview')">✕</button>
+        </div>
+      </div>
+      <div class="modal-body" id="inv-preview-body"
+        style="background:#e8edf2;padding:20px;overflow-x:auto;display:flex;justify-content:center">
+        <div class="spinner" style="margin:40px auto"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+window.init_invoices = async function() {
+  await loadFacilityOptions('inv-facility-filter');
+  await loadInsuranceOptions('inv-insurance-filter');
+  await loadInvoicesPage();
+  await loadInvoiceStats();
+};
+
+async function loadInvoiceStats() {
+  try {
+    const { data } = await db.from('invoices').select('gross_amount, vat_amount, patient_share, claim_amount, batch_id');
+    if (!data) return;
+    const total     = data.length;
+    const unbatched = data.filter(i => !i.batch_id).length;
+    const totalClaim= data.reduce((s,i) => s+(+i.claim_amount||0), 0);
+    const totalVat  = data.reduce((s,i) => s+(+i.vat_amount||0), 0);
+
+    document.getElementById('inv-stats').innerHTML = `
+      <div class="stat-card"><div class="stat-label">📄 Total Invoices</div>
+        <div class="stat-value">${total}</div></div>
+      <div class="stat-card amber"><div class="stat-label">📭 Unbatched</div>
+        <div class="stat-value">${unbatched}</div>
+        <div class="stat-sub">Awaiting batch</div></div>
+      <div class="stat-card green"><div class="stat-label">💰 Total Claim Amt</div>
+        <div class="stat-value" style="font-size:16px">${fmtAED(totalClaim)}</div></div>
+      <div class="stat-card blue"><div class="stat-label">🧮 Total VAT</div>
+        <div class="stat-value" style="font-size:16px">${fmtAED(totalVat)}</div></div>
+    `;
+  } catch(e) { console.error(e); }
+}
+
+async function loadInvoicesPage() {
+  const tbody = document.getElementById('inv-tbody');
+  if (!tbody) return;
+
+  try {
+    const filters = {
+      facility_id:  document.getElementById('inv-facility-filter')?.value || '',
+      insurance_id: document.getElementById('inv-insurance-filter')?.value || '',
+    };
+    Object.keys(filters).forEach(k => { if (!filters[k]) delete filters[k]; });
+
+    let q = db.from('invoices')
+      .select('*, facilities(name), insurance_companies(name)')
+      .order('created_at', { ascending: false });
+
+    if (filters.facility_id)  q = q.eq('facility_id', filters.facility_id);
+    if (filters.insurance_id) q = q.eq('insurance_id', filters.insurance_id);
+
+    // Unbatched filter
+    const batchFilter = document.getElementById('inv-batch-filter')?.value;
+    if (batchFilter === 'unbatched') q = q.is('batch_id', null);
+
+    // Search
+    const search = document.getElementById('inv-search')?.value?.trim();
+    if (search) q = q.or(`patient_name.ilike.%${search}%,invoice_number.ilike.%${search}%,approval_code.ilike.%${search}%`);
+
+    const { data: invs } = await q;
+    document.getElementById('inv-count-label').textContent = `${invs?.length || 0} invoice${invs?.length !== 1 ? 's' : ''}`;
+
+    if (!invs?.length) {
+      tbody.innerHTML = `<tr><td colspan="12">
+        <div class="empty-state" style="padding:30px">
+          <div class="es-icon">🧾</div>
+          <div class="es-title">No invoices found</div>
+          <div class="es-text">Approve claims to generate invoices automatically</div>
+        </div>
+      </td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = invs.map(inv => `
+      <tr>
+        <td>
+          <span class="mono fw-600" style="color:var(--teal2);font-size:11px;cursor:pointer"
+            onclick="previewInvoiceModal('${inv.id}')">
+            ${sanitize(inv.invoice_number)}
+          </span>
+        </td>
+        <td>
+          <div style="font-weight:600;font-size:12.5px">${sanitize(inv.patient_name||'—')}</div>
+          ${inv.member_id ? `<div class="text-muted text-sm">${sanitize(inv.member_id)}</div>` : ''}
+        </td>
+        <td style="font-size:11.5px">${sanitize(inv.insurance_companies?.name||'—')}</td>
+        <td style="font-size:11.5px">${sanitize(inv.facilities?.name||'—')}</td>
+        <td class="mono text-sm" style="color:var(--teal2)">${sanitize(inv.approval_code||'—')}</td>
+        <td style="font-size:11px;color:var(--muted);white-space:nowrap">${fmtDate(inv.invoice_date)}</td>
+        <td class="text-right mono text-sm">${fmtNum(inv.gross_amount)}</td>
+        <td class="text-right mono text-sm">${fmtNum(inv.vat_amount)}</td>
+        <td class="text-right mono text-sm">${fmtNum(inv.patient_share)}</td>
+        <td class="text-right">
+          <span style="font-family:var(--font-mono);font-weight:700;color:var(--green)">
+            ${fmtNum(inv.claim_amount)}
+          </span>
+        </td>
+        <td>
+          ${inv.batch_id
+            ? `<span class="badge bp3" style="font-size:10px">Batched</span>`
+            : `<span class="badge ba" style="font-size:10px">Unbatched</span>`
+          }
+        </td>
+        <td>
+          <button class="btn btn-secondary btn-sm" onclick="previewInvoiceModal('${inv.id}')">
+            👁 Preview
+          </button>
+        </td>
+      </tr>
+    `).join('');
+  } catch(e) {
+    console.error(e);
+    tbody.innerHTML = `<tr><td colspan="12">
+      <div class="alert alert-error" style="margin:12px">Error: ${e.message}</div>
+    </td></tr>`;
+  }
+}
+
+// ============================================================
+// INVOICE PREVIEW MODAL
+// ============================================================
+async function previewInvoiceModal(invId) {
+  const body = document.getElementById('inv-preview-body');
+  body.innerHTML = `<div class="spinner" style="margin:40px auto;display:block"></div>`;
+  openModal('modal-inv-preview');
+
+  try {
+    const { data: inv } = await db.from('invoices').select('*').eq('id', invId).single();
+    const { data: fac } = await db.from('facilities').select('*').eq('id', inv.facility_id).single();
+    const { data: ins } = await db.from('insurance_companies').select('*').eq('id', inv.insurance_id).single();
+
+    document.getElementById('inv-preview-title').textContent    = `🧾 ${inv.invoice_number}`;
+    document.getElementById('inv-preview-subtitle').textContent =
+      `${ins?.name} · ${fac?.name} · ${fmtDate(inv.invoice_date)}`;
+
+    body.innerHTML = `<div style="padding:0">${renderInvoiceHTML(inv, fac, ins)}</div>`;
+  } catch(e) {
+    body.innerHTML = `<div class="alert alert-error">Failed to load: ${e.message}</div>`;
+  }
+}
+
+// ============================================================
+// EXPORT INVOICES TO CSV
+// ============================================================
+async function exportInvoicesCSV() {
+  try {
+    const { data: invs } = await db.from('invoices')
+      .select('*, facilities(name), insurance_companies(name)')
+      .order('created_at', { ascending: false });
+
+    if (!invs?.length) { toast('No invoices to export', 'warning'); return; }
+
+    const headers = [
+      'Invoice #', 'Patient', 'Member ID', 'Emirates ID',
+      'Insurance', 'Facility', 'Doctor', 'Approval Code',
+      'Invoice Date', 'Gross', 'Discount', 'VAT', 'Net', 'Patient Share', 'Claim Amount', 'Batched'
+    ];
+    const rows = invs.map(i => [
+      i.invoice_number, i.patient_name||'', i.member_id||'', i.emirates_id||'',
+      i.insurance_companies?.name||'', i.facilities?.name||'',
+      i.doctor_name||'', i.approval_code||'',
+      new Date(i.invoice_date||i.created_at).toLocaleDateString('en-GB'),
+      fmtNum(i.gross_amount), fmtNum(i.discount||0), fmtNum(i.vat_amount),
+      fmtNum(i.net_amount), fmtNum(i.patient_share), fmtNum(i.claim_amount),
+      i.batch_id ? 'Yes' : 'No'
+    ]);
+
+    const csv = [headers, ...rows]
+      .map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(','))
+      .join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `invoices_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('Invoices exported', 'success');
+  } catch(e) {
+    toast('Export failed: ' + e.message, 'error');
+  }
+}
+</script>

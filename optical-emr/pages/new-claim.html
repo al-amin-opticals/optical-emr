@@ -1,0 +1,712 @@
+<!-- NEW CLAIM SUBMISSION PAGE -->
+<div id="new-claim-page">
+
+  <div class="alert alert-info mb-16">
+    <span>ℹ</span>
+    <span>All fields marked <span style="color:var(--red)">*</span> are required before submission. Once submitted, the claim enters the central queue and will be assigned a queue number.</span>
+  </div>
+
+  <form id="new-claim-form" onsubmit="return false">
+    <div style="display:grid;grid-template-columns:1fr 380px;gap:20px;align-items:start">
+
+      <!-- LEFT: Main Form -->
+      <div>
+
+        <!-- PATIENT DETAILS -->
+        <div class="card mb-16">
+          <div class="card-header">
+            <span style="font-size:18px">👤</span>
+            <div>
+              <div class="card-title">Patient Details</div>
+              <div class="card-subtitle">Member information as per insurance card</div>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="g2">
+              <div class="fg">
+                <label>Patient Full Name <span class="req">*</span></label>
+                <input type="text" class="fi" id="nc-patient-name" placeholder="As per Emirates ID" />
+              </div>
+              <div class="fg">
+                <label>Mobile Number <span class="req">*</span></label>
+                <input type="tel" class="fi fi-mono" id="nc-phone" placeholder="+971 5X XXX XXXX" />
+              </div>
+            </div>
+            <div class="g2">
+              <div class="fg">
+                <label>Emirates ID <span class="req">*</span></label>
+                <input type="text" class="fi fi-mono" id="nc-eid" placeholder="784-XXXX-XXXXXXX-X"
+                  maxlength="18" oninput="formatEID(this)" />
+              </div>
+              <div class="fg">
+                <label>Member ID (Insurance)</label>
+                <input type="text" class="fi fi-mono" id="nc-member-id" placeholder="Member / Card Number" />
+              </div>
+            </div>
+            <div class="g2">
+              <div class="fg">
+                <label>Policy Expiry Date <span class="req">*</span></label>
+                <input type="date" class="fi" id="nc-policy-expiry" />
+              </div>
+              <div class="fg">
+                <label>Insurance Company <span class="req">*</span></label>
+                <select class="fi" id="nc-insurance">
+                  <option value="">Loading…</option>
+                </select>
+              </div>
+            </div>
+            <div class="g2">
+              <div class="fg">
+                <label>TPA (if applicable)</label>
+                <select class="fi" id="nc-tpa">
+                  <option value="">— No TPA —</option>
+                </select>
+              </div>
+              <div class="fg" id="nc-facility-fg" style="display:none">
+                <label>Facility (Branch) <span class="req">*</span></label>
+                <select class="fi" id="nc-facility">
+                  <option value="">— Select Facility —</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CLINICAL / DIAGNOSIS -->
+        <div class="card mb-16">
+          <div class="card-header">
+            <span style="font-size:18px">🩺</span>
+            <div>
+              <div class="card-title">Clinical Information</div>
+              <div class="card-subtitle">Diagnosis and prescription details</div>
+            </div>
+          </div>
+          <div class="card-body">
+
+            <!-- ICD Codes -->
+            <div class="stitle">Diagnosis (ICD-10 Codes)</div>
+            <div id="icd-rows">
+              <!-- Added dynamically -->
+            </div>
+            <button type="button" class="btn btn-secondary btn-sm mt-8" onclick="addIcdRow()">
+              ＋ Add ICD Code
+            </button>
+
+            <div class="sep"></div>
+
+            <!-- Prescription Type Toggle -->
+            <div class="stitle">Prescription Source</div>
+            <div class="toggle-wrap mb-16">
+              <label class="toggle">
+                <input type="checkbox" id="nc-pres-toggle" onchange="togglePresType(this)" />
+                <span class="toggle-slider"></span>
+              </label>
+              <span class="toggle-label" id="pres-toggle-label">🏥 Own Facility Optometrist</span>
+            </div>
+
+            <!-- Own Opto -->
+            <div id="own-opto-section">
+              <div class="fg">
+                <label>Optometrist <span class="req">*</span></label>
+                <select class="fi" id="nc-optometrist">
+                  <option value="">— Select Optometrist —</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- External Dr -->
+            <div id="ext-dr-section" style="display:none">
+              <div class="fg">
+                <label>External Doctor Name <span class="req">*</span></label>
+                <input type="text" class="fi" id="nc-ext-dr" placeholder="Doctor's full name" />
+              </div>
+            </div>
+
+            <div class="sep"></div>
+
+            <!-- Diagnosis Notes -->
+            <div class="fg">
+              <label>Clinical Notes / Additional Diagnosis</label>
+              <textarea class="fi" id="nc-diag-notes" rows="3" placeholder="Any additional clinical information…"></textarea>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- HCPCS LINE ITEMS -->
+        <div class="card mb-16">
+          <div class="card-header">
+            <span style="font-size:18px">🛒</span>
+            <div>
+              <div class="card-title">Items / Services (HCPCS)</div>
+              <div class="card-subtitle">Products and services being claimed</div>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="itw">
+              <table class="itable">
+                <thead>
+                  <tr>
+                    <th class="lft" style="width:180px">HCPCS Code</th>
+                    <th class="lft" style="min-width:220px">Description</th>
+                    <th style="width:60px">PKs</th>
+                    <th style="width:60px">Qty</th>
+                    <th style="width:80px">Unit Price</th>
+                    <th style="width:80px">Gross</th>
+                    <th style="width:80px">Discount</th>
+                    <th style="width:80px">Net (Incl. VAT)</th>
+                    <th style="width:50px">VAT%</th>
+                    <th style="width:70px">VAT Amt</th>
+                    <th style="width:80px">Co-Ins</th>
+                    <th style="width:80px">Claim Amt</th>
+                    <th style="width:36px"></th>
+                  </tr>
+                </thead>
+                <tbody id="hcpcs-tbody">
+                  <!-- rows added dynamically -->
+                </tbody>
+              </table>
+            </div>
+
+            <button type="button" class="btn btn-secondary btn-sm" onclick="addHcpcsRow()">
+              ＋ Add Item
+            </button>
+
+            <!-- Summary Row -->
+            <div class="sumrow" id="hcpcs-sumrow">
+              <div class="sc">
+                <div class="sc-l">Gross Amount</div>
+                <div class="sc-v" id="sum-gross">AED 0.00</div>
+              </div>
+              <div class="sc">
+                <div class="sc-l">VAT (5%)</div>
+                <div class="sc-v" id="sum-vat">AED 0.00</div>
+              </div>
+              <div class="sc">
+                <div class="sc-l">Patient Share (Co-Ins)</div>
+                <div class="sc-v" id="sum-patient">AED 0.00</div>
+              </div>
+              <div class="sc" style="border-color:var(--teal2)">
+                <div class="sc-l">Claim Amount</div>
+                <div class="sc-v" style="color:var(--teal2)" id="sum-claim">AED 0.00</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- RIGHT: Attachments + Submit -->
+      <div>
+
+        <!-- ATTACHMENTS -->
+        <div class="card mb-16">
+          <div class="card-header">
+            <span style="font-size:18px">📎</span>
+            <div>
+              <div class="card-title">Attachments</div>
+              <div class="card-subtitle">Upload required documents</div>
+            </div>
+          </div>
+          <div class="card-body">
+
+            <!-- Emirates ID -->
+            <div class="fg">
+              <label>Emirates ID (PDF/Image) <span class="req">*</span></label>
+              <div class="upload-zone" id="uz-eid">
+                <input type="file" accept=".pdf,.jpg,.jpeg,.png" />
+                <div class="uz-icon">🪪</div>
+                <div class="uz-text">Click or drag Emirates ID</div>
+                <div class="uz-sub">PDF, JPG, PNG · Max 10MB</div>
+              </div>
+            </div>
+
+            <!-- Claim Form -->
+            <div class="fg">
+              <label>Claim Form (PDF) <span class="req">*</span></label>
+              <div class="upload-zone" id="uz-claim-form">
+                <input type="file" accept=".pdf,.jpg,.jpeg,.png" />
+                <div class="uz-icon">📋</div>
+                <div class="uz-text">Click or drag Claim Form</div>
+                <div class="uz-sub">PDF · Max 10MB</div>
+              </div>
+            </div>
+
+            <!-- Prescription -->
+            <div class="fg">
+              <label>Prescription (PDF/Image) <span class="req">*</span></label>
+              <div class="upload-zone" id="uz-prescription">
+                <input type="file" accept=".pdf,.jpg,.jpeg,.png" />
+                <div class="uz-icon">📝</div>
+                <div class="uz-text">Click or drag Prescription</div>
+                <div class="uz-sub">PDF, JPG, PNG · Max 10MB</div>
+              </div>
+            </div>
+
+            <!-- Sales Order Screenshot -->
+            <div class="fg">
+              <label>Sales Order Screenshot <span class="req">*</span></label>
+              <div class="upload-zone" id="uz-sales-order">
+                <input type="file" accept=".pdf,.jpg,.jpeg,.png" />
+                <div class="uz-icon">🧾</div>
+                <div class="uz-text">Click or drag Sales Order</div>
+                <div class="uz-sub">JPG, PNG, PDF · Max 10MB</div>
+              </div>
+            </div>
+
+            <!-- Eligibility Screenshot -->
+            <div class="fg">
+              <label>Eligibility Screenshot <span class="req">*</span></label>
+              <div class="upload-zone" id="uz-eligibility">
+                <input type="file" accept=".pdf,.jpg,.jpeg,.png" />
+                <div class="uz-icon">✅</div>
+                <div class="uz-text">Click or drag Eligibility Screenshot</div>
+                <div class="uz-sub">JPG, PNG · Max 10MB</div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- SUBMIT -->
+        <div class="card">
+          <div class="card-body">
+            <div id="submit-checklist" style="margin-bottom:14px">
+              <!-- Checklist rendered here -->
+            </div>
+            <button type="button" class="btn btn-primary btn-full btn-lg" id="nc-submit-btn" onclick="submitNewClaim()">
+              <span id="nc-submit-label">📤  Submit Claim</span>
+              <span id="nc-submit-spinner" class="spinner" style="display:none;border-width:2.5px;width:18px;height:18px;border-top-color:#fff"></span>
+            </button>
+            <div style="font-size:10.5px;color:var(--muted);text-align:center;margin-top:8px">
+              After submission, claim enters the central queue
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </form>
+
+  <!-- SUCCESS MODAL -->
+  <div class="modal-overlay" id="modal-submit-success">
+    <div class="modal">
+      <div class="modal-body" style="text-align:center;padding:40px 30px">
+        <div style="font-size:52px;margin-bottom:12px">✅</div>
+        <div style="font-family:var(--font-head);font-size:20px;color:var(--ink);margin-bottom:8px">Claim Submitted!</div>
+        <div style="font-size:12.5px;color:var(--muted);margin-bottom:20px">
+          Your claim has been successfully submitted to the central queue.
+        </div>
+        <div style="background:var(--teal-light);border:1px solid var(--teal-mid);border-radius:var(--radius);
+          padding:14px 20px;margin-bottom:20px">
+          <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em">Claim Number</div>
+          <div style="font-size:22px;font-weight:800;color:var(--teal2);font-family:var(--font-mono)" id="success-claim-number">—</div>
+        </div>
+        <div class="queue-rank-display" style="margin-bottom:20px">
+          <div class="qrd-label">Your Queue Position</div>
+          <div class="qrd-num" id="success-queue-rank">—</div>
+          <div class="qrd-sub">in the central claims queue</div>
+        </div>
+        <div style="display:flex;gap:10px;justify-content:center">
+          <button class="btn btn-secondary" onclick="closeModal('modal-submit-success');navigateTo('claims')">
+            View My Claims
+          </button>
+          <button class="btn btn-primary" onclick="closeModal('modal-submit-success');init_new_claim()">
+            Submit Another
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ============================================================
+// NEW CLAIM PAGE INIT
+// ============================================================
+async function init_new_claim() {
+  NC_files = {};
+  NC_icdRows = [];
+  NC_hcpcsRows = [];
+
+  // Load dropdowns
+  await loadInsuranceOptions('nc-insurance');
+  await loadTPAOptions('nc-tpa');
+
+  if (!isFrontDesk()) {
+    // Managers can submit on behalf of any facility
+    document.getElementById('nc-facility-fg').style.display = '';
+    await loadFacilityOptions('nc-facility');
+  } else {
+    // Pre-fill facility
+    document.getElementById('nc-facility-fg').style.display = 'none';
+  }
+
+  // Load optometrists for this facility
+  const facId = isFrontDesk() ? APP.profile.facility_id : null;
+  await loadOptoOptions('nc-optometrist', facId);
+
+  // Init file upload zones
+  const zones = [
+    { id:'uz-eid',          key:'emirates_id',  label:'Emirates ID' },
+    { id:'uz-claim-form',   key:'claim_form',   label:'Claim Form' },
+    { id:'uz-prescription', key:'prescription', label:'Prescription' },
+    { id:'uz-sales-order',  key:'sales_order',  label:'Sales Order' },
+    { id:'uz-eligibility',  key:'eligibility',  label:'Eligibility' },
+  ];
+  zones.forEach(z => {
+    initUploadZone(z.id, {
+      accept: '.pdf,.jpg,.jpeg,.png',
+      label: `Click or drag ${z.label}`,
+      onFile: (file) => { NC_files[z.key] = file; updateChecklist(); }
+    });
+  });
+
+  // Init first rows
+  addIcdRow();
+  addHcpcsRow();
+  updateChecklist();
+}
+
+// ============================================================
+// FILE + FORM STATE
+// ============================================================
+let NC_files  = {};
+let NC_icdRows = [];
+let NC_hcpcsRows = [];
+
+// ============================================================
+// PRESCRIPTION TOGGLE
+// ============================================================
+function togglePresType(checkbox) {
+  const isExternal = checkbox.checked;
+  document.getElementById('own-opto-section').style.display = isExternal ? 'none' : '';
+  document.getElementById('ext-dr-section').style.display   = isExternal ? '' : 'none';
+  document.getElementById('pres-toggle-label').textContent  =
+    isExternal ? '🏥 External Doctor Prescription' : '🏥 Own Facility Optometrist';
+}
+
+// ============================================================
+// EID FORMATTER
+// ============================================================
+function formatEID(inp) {
+  let v = inp.value.replace(/[^0-9]/g,'');
+  let out = '';
+  if (v.length > 0)  out = v.slice(0,3);
+  if (v.length > 3)  out += '-' + v.slice(3,7);
+  if (v.length > 7)  out += '-' + v.slice(7,14);
+  if (v.length > 14) out += '-' + v.slice(14,15);
+  inp.value = out;
+}
+
+// ============================================================
+// ICD ROWS
+// ============================================================
+function addIcdRow() {
+  const rowId = uid();
+  NC_icdRows.push(rowId);
+  const container = document.getElementById('icd-rows');
+  const div = document.createElement('div');
+  div.id = `icd-row-${rowId}`;
+  div.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:8px';
+  div.innerHTML = `
+    <select class="fi" id="icd-sel-${rowId}" style="flex:1" onchange="onIcdChange('${rowId}')">
+      <option value="">— Select ICD Code —</option>
+    </select>
+    <input type="text" class="fi fi-mono" id="icd-desc-${rowId}" style="flex:1.4"
+      placeholder="Description (auto-filled)" readonly />
+    <button type="button" onclick="removeIcdRow('${rowId}')"
+      class="btn btn-secondary btn-sm btn-icon" title="Remove">✕</button>
+  `;
+  container.appendChild(div);
+  loadICDOptions(`icd-sel-${rowId}`);
+}
+
+function onIcdChange(rowId) {
+  const sel = document.getElementById(`icd-sel-${rowId}`);
+  const opt = sel.options[sel.selectedIndex];
+  document.getElementById(`icd-desc-${rowId}`).value = opt.text.split(' — ')[1] || '';
+}
+
+function removeIcdRow(rowId) {
+  NC_icdRows = NC_icdRows.filter(r => r !== rowId);
+  document.getElementById(`icd-row-${rowId}`)?.remove();
+}
+
+function getIcdData() {
+  return NC_icdRows.map(rowId => {
+    const sel = document.getElementById(`icd-sel-${rowId}`);
+    if (!sel || !sel.value) return null;
+    const opt = sel.options[sel.selectedIndex];
+    return { id: sel.value, code: opt.dataset.code || '', description: opt.text.split(' — ')[1] || opt.text };
+  }).filter(Boolean);
+}
+
+// ============================================================
+// HCPCS ROWS
+// ============================================================
+let _hcpcsList = null;
+
+async function getHcpcsList() {
+  if (!_hcpcsList) _hcpcsList = await fetchConfig('hcpcs_codes');
+  return _hcpcsList;
+}
+
+function addHcpcsRow() {
+  const rowId = uid();
+  NC_hcpcsRows.push(rowId);
+  const tbody = document.getElementById('hcpcs-tbody');
+  const tr = document.createElement('tr');
+  tr.id = `hcpcs-row-${rowId}`;
+  tr.innerHTML = `
+    <td>
+      <select class="ti" id="hcpcs-code-${rowId}" onchange="onHcpcsChange('${rowId}')">
+        <option value="">— Code —</option>
+      </select>
+    </td>
+    <td><input type="text" class="ti lft" id="hcpcs-desc-${rowId}" placeholder="Description" /></td>
+    <td><input type="number" class="ti ctr" id="hcpcs-pks-${rowId}" value="1" min="1" style="width:50px" onchange="calcRow('${rowId}')" /></td>
+    <td><input type="number" class="ti ctr" id="hcpcs-qty-${rowId}" value="1" min="0" style="width:50px" onchange="calcRow('${rowId}')" /></td>
+    <td><input type="number" class="ti rgt" id="hcpcs-price-${rowId}" value="0.00" step="0.01" onchange="calcRow('${rowId}')" /></td>
+    <td><input type="text" class="ti rgt auto" id="hcpcs-gross-${rowId}" readonly value="0.00" /></td>
+    <td><input type="number" class="ti rgt" id="hcpcs-disc-${rowId}" value="0.00" step="0.01" onchange="calcRow('${rowId}')" /></td>
+    <td><input type="text" class="ti rgt auto" id="hcpcs-net-${rowId}" readonly value="0.00" /></td>
+    <td><input type="number" class="ti ctr" id="hcpcs-vat-${rowId}" value="5" min="0" max="100" onchange="calcRow('${rowId}')" style="width:44px" /></td>
+    <td><input type="text" class="ti rgt auto" id="hcpcs-vatamt-${rowId}" readonly value="0.00" /></td>
+    <td><input type="number" class="ti rgt" id="hcpcs-coins-${rowId}" value="0.00" step="0.01" onchange="calcRow('${rowId}')" /></td>
+    <td><input type="text" class="ti rgt auto" id="hcpcs-claim-${rowId}" readonly value="0.00" /></td>
+    <td>
+      <button type="button" class="btn btn-secondary btn-sm btn-icon" onclick="removeHcpcsRow('${rowId}')" title="Remove">✕</button>
+    </td>
+  `;
+  tbody.appendChild(tr);
+
+  // Load HCPCS options
+  getHcpcsList().then(list => {
+    const sel = document.getElementById(`hcpcs-code-${rowId}`);
+    if (sel) {
+      sel.innerHTML = '<option value="">— Code —</option>' +
+        list.map(h => `<option value="${h.id}" data-code="${h.code}" data-price="${h.unit_price}">${h.code} — ${sanitize(h.description)}</option>`).join('');
+    }
+  });
+}
+
+function onHcpcsChange(rowId) {
+  const sel = document.getElementById(`hcpcs-code-${rowId}`);
+  const opt = sel.options[sel.selectedIndex];
+  const desc = document.getElementById(`hcpcs-desc-${rowId}`);
+  const price = document.getElementById(`hcpcs-price-${rowId}`);
+  if (opt && opt.value) {
+    desc.value  = opt.text.split(' — ')[1] || '';
+    price.value = opt.dataset.price || '0.00';
+    calcRow(rowId);
+  }
+}
+
+function calcRow(rowId) {
+  const g = id => parseFloat(document.getElementById(id)?.value || 0) || 0;
+  const pks   = g(`hcpcs-pks-${rowId}`);
+  const qty   = g(`hcpcs-qty-${rowId}`);
+  const price = g(`hcpcs-price-${rowId}`);
+  const disc  = g(`hcpcs-disc-${rowId}`);
+  const vatP  = g(`hcpcs-vat-${rowId}`);
+  const coins = g(`hcpcs-coins-${rowId}`);
+
+  const gross  = price * qty;
+  const net    = gross - disc;
+  const vatAmt = net * vatP / 100;
+  const netInc = net + vatAmt;
+  const claimAmt = netInc - coins;
+
+  const set = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.value = val.toFixed(2);
+  };
+  set(`hcpcs-gross-${rowId}`,  gross);
+  set(`hcpcs-net-${rowId}`,    netInc);
+  set(`hcpcs-vatamt-${rowId}`, vatAmt);
+  set(`hcpcs-claim-${rowId}`,  claimAmt);
+
+  calcTotals();
+}
+
+function removeHcpcsRow(rowId) {
+  NC_hcpcsRows = NC_hcpcsRows.filter(r => r !== rowId);
+  document.getElementById(`hcpcs-row-${rowId}`)?.remove();
+  calcTotals();
+}
+
+function calcTotals() {
+  let gross = 0, vat = 0, patient = 0, claim = 0;
+  NC_hcpcsRows.forEach(rowId => {
+    const g = id => parseFloat(document.getElementById(id)?.value || 0) || 0;
+    gross   += g(`hcpcs-gross-${rowId}`);
+    vat     += g(`hcpcs-vatamt-${rowId}`);
+    patient += g(`hcpcs-coins-${rowId}`);
+    claim   += g(`hcpcs-claim-${rowId}`);
+  });
+  const fmtA = v => 'AED ' + v.toFixed(2);
+  document.getElementById('sum-gross').textContent   = fmtA(gross);
+  document.getElementById('sum-vat').textContent     = fmtA(vat);
+  document.getElementById('sum-patient').textContent = fmtA(patient);
+  document.getElementById('sum-claim').textContent   = fmtA(claim);
+}
+
+function getHcpcsData() {
+  return NC_hcpcsRows.map(rowId => {
+    const sel = document.getElementById(`hcpcs-code-${rowId}`);
+    const g = id => parseFloat(document.getElementById(id)?.value || 0) || 0;
+    if (!sel || !sel.value) return null;
+    const opt = sel.options[sel.selectedIndex];
+    return {
+      id:          sel.value,
+      code:        opt.dataset.code || '',
+      description: document.getElementById(`hcpcs-desc-${rowId}`)?.value || '',
+      pks:         g(`hcpcs-pks-${rowId}`),
+      qty:         g(`hcpcs-qty-${rowId}`),
+      unit_price:  g(`hcpcs-price-${rowId}`),
+      gross:       g(`hcpcs-gross-${rowId}`),
+      discount:    g(`hcpcs-disc-${rowId}`),
+      vat_pct:     g(`hcpcs-vat-${rowId}`),
+      vat_amount:  g(`hcpcs-vatamt-${rowId}`),
+      co_ins:      g(`hcpcs-coins-${rowId}`),
+      claim_amount:g(`hcpcs-claim-${rowId}`),
+    };
+  }).filter(Boolean);
+}
+
+// ============================================================
+// CHECKLIST
+// ============================================================
+function updateChecklist() {
+  const checks = [
+    { key:'patient_name',   label:'Patient name', ok: !!$('#nc-patient-name')?.value },
+    { key:'emirates_id',    label:'Emirates ID',  ok: !!$('#nc-eid')?.value },
+    { key:'insurance',      label:'Insurance Co', ok: !!$('#nc-insurance')?.value },
+    { key:'eid_file',       label:'EID document', ok: !!NC_files['emirates_id'] },
+    { key:'claim_form',     label:'Claim form',   ok: !!NC_files['claim_form'] },
+    { key:'prescription',   label:'Prescription', ok: !!NC_files['prescription'] },
+    { key:'sales_order',    label:'Sales order',  ok: !!NC_files['sales_order'] },
+    { key:'eligibility',    label:'Eligibility',  ok: !!NC_files['eligibility'] },
+    { key:'hcpcs',          label:'At least 1 item', ok: NC_hcpcsRows.length > 0 },
+  ];
+  const cl = document.getElementById('submit-checklist');
+  if (!cl) return;
+  const allOk = checks.every(c => c.ok);
+  cl.innerHTML = `
+    <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">
+      Submission Checklist
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:12px">
+      ${checks.map(c => `
+        <div style="display:flex;align-items:center;gap:8px;font-size:11.5px;color:${c.ok ? 'var(--green)' : 'var(--muted)'}">
+          <span>${c.ok ? '✅' : '⬜'}</span>
+          <span>${c.label}</span>
+        </div>
+      `).join('')}
+    </div>
+    ${!allOk ? `<div class="alert alert-warning" style="font-size:11px;padding:8px 10px">Complete all items to submit</div>` : ''}
+  `;
+}
+
+// Re-check on input changes
+document.addEventListener('input', debounce(() => updateChecklist(), 400));
+
+// ============================================================
+// SUBMIT
+// ============================================================
+async function submitNewClaim() {
+  // Validate
+  const pName = $('#nc-patient-name')?.value?.trim();
+  const eid   = $('#nc-eid')?.value?.trim();
+  const ins   = $('#nc-insurance')?.value;
+  const polExp = $('#nc-policy-expiry')?.value;
+  const isExternal = $('#nc-pres-toggle')?.checked;
+
+  if (!pName || !eid || !ins) {
+    toast('Please fill all required patient fields', 'error');
+    return;
+  }
+  if (!NC_files['emirates_id'] || !NC_files['claim_form'] || !NC_files['prescription'] ||
+      !NC_files['sales_order'] || !NC_files['eligibility']) {
+    toast('Please upload all required documents', 'error');
+    return;
+  }
+  const hcpcsData = getHcpcsData();
+  if (!hcpcsData.length) {
+    toast('Please add at least one HCPCS item', 'error');
+    return;
+  }
+
+  const btn   = document.getElementById('nc-submit-btn');
+  const lbl   = document.getElementById('nc-submit-label');
+  const sp    = document.getElementById('nc-submit-spinner');
+  btn.disabled = true;
+  lbl.style.display = 'none';
+  sp.style.display = '';
+
+  try {
+    const facilityId = isFrontDesk()
+      ? APP.profile.facility_id
+      : $('#nc-facility')?.value;
+
+    if (!facilityId) { toast('Please select a facility', 'error'); return; }
+
+    // 1. Insert claim
+    const claimData = {
+      facility_id:       facilityId,
+      submitted_by:      APP.user.id,
+      patient_name:      pName,
+      phone:             $('#nc-phone')?.value || null,
+      emirates_id:       eid,
+      member_id:         $('#nc-member-id')?.value || null,
+      policy_expiry:     polExp || null,
+      insurance_id:      ins,
+      tpa_id:            $('#nc-tpa')?.value || null,
+      diagnosis_notes:   $('#nc-diag-notes')?.value || null,
+      icd_codes:         getIcdData(),
+      hcpcs_items:       hcpcsData,
+      prescription_type: isExternal ? 'external' : 'own',
+      optometrist_id:    isExternal ? null : ($('#nc-optometrist')?.value || null),
+      external_dr_name:  isExternal ? ($('#nc-ext-dr')?.value || null) : null,
+      status:            'pending',
+    };
+
+    const claim = await Claims.submit(claimData);
+
+    // 2. Upload documents
+    const docTypes = ['emirates_id','claim_form','prescription','sales_order','eligibility'];
+    await Promise.all(docTypes.map(dt => {
+      if (NC_files[dt]) return Claims.uploadDoc(claim.id, NC_files[dt], dt);
+    }));
+
+    // 3. Log history
+    await db.from('claim_history').insert([{
+      claim_id:   claim.id,
+      old_status: null,
+      new_status: 'pending',
+      changed_by: APP.user.id,
+      notes: 'Claim submitted by ' + APP.profile.full_name,
+    }]);
+
+    // 4. Show success
+    document.getElementById('success-claim-number').textContent = claim.claim_number;
+    document.getElementById('success-queue-rank').textContent   = claim.queue_position || '—';
+    openModal('modal-submit-success');
+
+    // Reset form
+    NC_files = {};
+    NC_icdRows = [];
+    NC_hcpcsRows = [];
+
+  } catch(e) {
+    console.error(e);
+    toast('Submission failed: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    lbl.style.display = '';
+    sp.style.display = 'none';
+  }
+}
+</script>
