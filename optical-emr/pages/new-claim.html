@@ -151,7 +151,6 @@
                     <th class="lft" style="min-width:220px">Description</th>
                     <th style="width:60px">PKs</th>
                     <th style="width:60px">Qty</th>
-                    <th style="width:80px">Unit Price</th>
                     <th style="width:80px">Gross</th>
                     <th style="width:80px">Discount</th>
                     <th style="width:80px">Net (Incl. VAT)</th>
@@ -468,7 +467,6 @@ function addHcpcsRow() {
     <td><input type="text" class="ti lft" id="hcpcs-desc-${rowId}" placeholder="Description" /></td>
     <td><input type="number" class="ti ctr" id="hcpcs-pks-${rowId}" value="1" min="1" style="width:50px" onchange="calcRow('${rowId}')" /></td>
     <td><input type="number" class="ti ctr" id="hcpcs-qty-${rowId}" value="1" min="0" style="width:50px" onchange="calcRow('${rowId}')" /></td>
-    <td><input type="number" class="ti rgt" id="hcpcs-price-${rowId}" value="0.00" step="0.01" onchange="calcRow('${rowId}')" /></td>
     <td><input type="text" class="ti rgt auto" id="hcpcs-gross-${rowId}" readonly value="0.00" /></td>
     <td><input type="number" class="ti rgt" id="hcpcs-disc-${rowId}" value="0.00" step="0.01" onchange="calcRow('${rowId}')" /></td>
     <td><input type="text" class="ti rgt auto" id="hcpcs-net-${rowId}" readonly value="0.00" /></td>
