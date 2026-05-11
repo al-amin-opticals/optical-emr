@@ -6,7 +6,7 @@
 // ============================================================
 // SUPABASE CONFIG — Replace with your actual project values
 // ============================================================
-const SUPABASE_URL = 'https://lmqrmwjowkqkbqkxgdfv.supabase.co/rest/v1/';
+const SUPABASE_URL = 'https://lmqrmwjowkqkbqkxgdfv.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxtcXJtd2pvd2txa2Jxa3hnZGZ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgzMDgzMDQsImV4cCI6MjA5Mzg4NDMwNH0.g57KmhThj5HexheiRmODFMqE3TAf1IIcVxjAzGk-wK4';
 
 const { createClient } = supabase;
