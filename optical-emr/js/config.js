@@ -679,21 +679,22 @@ window.saveConfig_insurance = async function() {
   if (!name) { toast('Company name required','error'); return; }
   const payload = {
     name,
-    internal_name: document.getElementById('ins-iname').value||null,
-    emirate:       document.getElementById('ins-emirate').value||null,
-    tpa_id:        document.getElementById('ins-tpa').value||null,
-    address:       document.getElementById('ins-addr').value||null,
-    phone:         document.getElementById('ins-phone').value||null,
-    email:         document.getElementById('ins-email').value||null,
+    internal_name: document.getElementById('ins-iname').value || null,
+    emirate:       document.getElementById('ins-emirate').value || null,
+    tpa_id:        document.getElementById('ins-tpa').value || null,
+    address:       document.getElementById('ins-addr').value || null,
+    phone:         document.getElementById('ins-phone').value || null,
   };
   try {
-    id ? await db.from('insurance_companies').update(payload).eq('id',id)
-       : await db.from('insurance_companies').insert([payload]);
+    const { error } = id
+      ? await db.from('insurance_companies').update(payload).eq('id', id)
+      : await db.from('insurance_companies').insert([payload]);
+    if (error) throw error;
     clearCache('insurance_companies');
-    toast('Saved!','success');
+    toast('Saved!', 'success');
     closeModal('modal-cfg-insurance');
     await loadConfigTable_insurance();
-  } catch(e) { toast('Error: '+e.message,'error'); }
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
 };
 
 // ============================================================
