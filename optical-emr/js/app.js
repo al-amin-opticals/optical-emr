@@ -297,7 +297,7 @@ scripts.forEach(oldScript => {
   const newScript = document.createElement('script');
   newScript.textContent = oldScript.textContent;
   oldScript.parentNode.removeChild(oldScript);
-  document.body.appendChild(newScript);
+  document.body.appendChild(newScript)
 });
      document.body.dataset.page = page;
     $$('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.page === page));
