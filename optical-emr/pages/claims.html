@@ -472,8 +472,11 @@ async function openClaimDetail(claimId) {
 
       <!-- DOCUMENTS TAB -->
       <div class="tab-panel" id="cd-tab-docs">
-        <div class="doc-grid">
-          ${docs.map(d => `
+<div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+  <button class="btn btn-secondary btn-sm" onclick="downloadAllDocs('${claimId}')">⬇ Download All</button>
+</div>
+<div class="doc-grid">
+${docs.map(d => `
           <div class="doc-item" onclick="previewDoc('${d.file_url}')">
           <div class="doc-preview">${d.doc_type==='prescription'?'📝':d.doc_type==='emirates_id'?'🪪':d.doc_type==='claim_form'?'📋':d.doc_type==='sales_order'?'🧾':'✅'}</div>
               <div class="doc-label">
@@ -751,12 +754,38 @@ function initScreenshotPaste() {
     }
   });
 }
-  function previewDoc(url) {
+  async function downloadFile(url, filename) {
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename || 'document';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+  } catch(e) {
+    toast('Download failed: ' + e.message, 'error');
+  }
+}
+
+async function downloadAllDocs(claimId) {
+  const docs = await Claims.getDocs(claimId);
+  if (!docs.length) { toast('No documents found', 'warning'); return; }
+  toast('Downloading ' + docs.length + ' files...', 'info');
+  for (const d of docs) {
+    await downloadFile(d.file_url, d.doc_type + '_' + (d.file_name||'file'));
+    await new Promise(r => setTimeout(r, 800));
+  }
+}
+
+function previewDoc(url) {
   const ov = document.createElement('div');
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px';
   ov.innerHTML = `
     <div style="display:flex;gap:10px">
-      <a href="${url}" download target="_blank" style="background:#fff;color:#111;padding:9px 18px;border-radius:8px;font-weight:600;font-size:13px;text-decoration:none">⬇ Download</a>
+      <button onclick="downloadFile('${url}','document')" style="background:#fff;border:none;padding:9px 18px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer">⬇ Download</button>
       <button onclick="document.body.removeChild(this.closest('div[style]'))" style="background:#fff;border:none;padding:9px 18px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer">✕ Close</button>
     </div>
     ${url.includes('.pdf') ? `<iframe src="${url}" style="width:90vw;height:82vh;border:none;border-radius:8px"></iframe>` : `<img src="${url}" style="max-width:90vw;max-height:82vh;border-radius:8px">`}
