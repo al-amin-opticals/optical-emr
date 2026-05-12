@@ -756,17 +756,22 @@ function initScreenshotPaste() {
 }
   async function downloadFile(url, filename) {
   try {
-    const res = await fetch(url);
-    const blob = await res.blob();
+    const path = url.split('/object/public/claim-documents/')[1]?.split('?')[0];
+    if (!path) { toast('Could not extract file path', 'error'); return; }
+    const { data, error } = await db.storage
+      .from('claim-documents')
+      .createSignedUrl(path, 120);
+    if (error) throw error;
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
+    a.href = data.signedUrl;
     a.download = filename || 'document';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    URL.revokeObjectURL(a.href);
   } catch(e) {
     toast('Download failed: ' + e.message, 'error');
+  }
+}
   }
 }
 
