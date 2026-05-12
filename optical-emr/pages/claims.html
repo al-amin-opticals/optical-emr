@@ -474,14 +474,14 @@ async function openClaimDetail(claimId) {
       <div class="tab-panel" id="cd-tab-docs">
         <div class="doc-grid">
           ${docs.map(d => `
-            <a href="${d.file_url}" target="_blank" class="doc-item">
-              <div class="doc-preview">${d.doc_type==='prescription'?'📝':d.doc_type==='emirates_id'?'🪪':d.doc_type==='claim_form'?'📋':d.doc_type==='sales_order'?'🧾':'✅'}</div>
+          <div class="doc-item" onclick="previewDoc('${d.file_url}')">
+          <div class="doc-preview">${d.doc_type==='prescription'?'📝':d.doc_type==='emirates_id'?'🪪':d.doc_type==='claim_form'?'📋':d.doc_type==='sales_order'?'🧾':'✅'}</div>
               <div class="doc-label">
                 <span>${docTypeLabels[d.doc_type] || d.doc_type}</span>
                 <span style="font-size:9px;color:var(--muted)">↗</span>
               </div>
-            </a>
-          `).join('')}
+              </div>
+              `).join('')}
           ${!docs.length ? `<div class="text-muted text-sm">No documents uploaded</div>` : ''}
         </div>
         ${claim.approval_screenshot_url ? `
@@ -750,5 +750,18 @@ function initScreenshotPaste() {
       }
     }
   });
+}
+  function previewDoc(url) {
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px';
+  ov.innerHTML = `
+    <div style="display:flex;gap:10px">
+      <a href="${url}" download target="_blank" style="background:#fff;color:#111;padding:9px 18px;border-radius:8px;font-weight:600;font-size:13px;text-decoration:none">⬇ Download</a>
+      <button onclick="document.body.removeChild(this.closest('div[style]'))" style="background:#fff;border:none;padding:9px 18px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer">✕ Close</button>
+    </div>
+    ${url.includes('.pdf') ? `<iframe src="${url}" style="width:90vw;height:82vh;border:none;border-radius:8px"></iframe>` : `<img src="${url}" style="max-width:90vw;max-height:82vh;border-radius:8px">`}
+  `;
+  ov.onclick = e => { if(e.target===ov) document.body.removeChild(ov); };
+  document.body.appendChild(ov);
 }
 </script>
